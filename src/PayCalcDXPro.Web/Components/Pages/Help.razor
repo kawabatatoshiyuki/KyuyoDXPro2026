@@ -1,0 +1,55 @@
+@page "/help"
+
+<PageTitle>マニュアル・ヘルプ｜給与計算DXPro</PageTitle>
+
+@* 現行 F_menu の「ワンポイントガイド」（B_manual＝操作ガイドPDFを開く）と、ホームページ／サポートページ（HOME_URL／SUPPORT_URL）を移植。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.HelpOutline" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">マニュアル・ヘルプ</MudText>
+            </div>
+        </div>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="3" Class="pa-2">
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="1" Class="pa-4" Style="height:100%;">
+            <div class="proc-section-title">操作ガイド</div>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="my-3">
+                本システムの操作方法をまとめた操作ガイド（PDF）を新しいタブで開きます。
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.MenuBook"
+                       Href="@ManualUrl" Target="_blank">操作ガイドを開く</MudButton>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-3">
+                ※ 操作ガイドが表示されない場合は、システム管理者へお問い合わせください。
+            </MudText>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="1" Class="pa-4" Style="height:100%;">
+            <div class="proc-section-title">お問い合わせ・サポート</div>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="my-3">
+                製品情報やサポート情報は、株式会社ファースト・アイティ・プロのWebサイトをご覧ください。
+            </MudText>
+            <div class="d-flex flex-column gap-2">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Home"
+                           Href="@HomeUrl" Target="_blank">ホームページ</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.SupportAgent"
+                           Href="@SupportUrl" Target="_blank">サポートページ</MudButton>
+            </div>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    // 操作ガイドPDFはアプリに同梱（wwwroot/manual 配下）し、静的ファイルとして開く。
+    // ファイル名は製品年版に対応（現行 MConst.MANUAL_PASS の「給与計算DXPro{年}-操作ガイド-.pdf」）。
+    private const string ManualUrl = "/manual/給与計算DXPro2026-操作ガイド-.pdf";
+    // ホームページ／サポートページ（現行 MConst.HOME_URL／SUPPORT_URL）。
+    private const string HomeUrl = "https://www.firstitpro.com/";
+    private const string SupportUrl = "https://www.firstitpro.com/support.html";
+}

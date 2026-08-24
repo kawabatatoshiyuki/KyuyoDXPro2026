@@ -1,0 +1,523 @@
+@namespace PayCalcDXPro.Web.Components.Shared
+@using PayCalcDXPro.Data.Employee
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject PayCalcDXPro.Web.TabStateService TabState
+
+@* 従業員の編集フォーム（部品）。一覧と同一画面に配置するマスタ-ディテールのディテール側。
+   各カテゴリは行頭アイコン付きの白い角丸カード（会社情報と統一デザイン）。 *@
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3" Spacing="2">
+    <MudText Typo="Typo.h6">@(IsNew ? "新規登録" : $"編集：{Model.氏名}")</MudText>
+    @if (!IsNew)
+    {
+        <MudButton Variant="Variant.Outlined" Margin="Margin.Dense" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete"
+                   OnClick="DeleteAsync" Disabled="_saving">削除</MudButton>
+    }
+</MudStack>
+
+<MudForm @ref="_form" Model="Model">
+  <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" KeepPanelsAlive="true"
+           Class="spaced-tabs" @bind-ActivePanelIndex="ActiveTab">
+    <MudTabPanel Text="基本情報" Icon="@Icons.Material.Filled.Person">
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">基本情報</MudText>
+            </MudStack>
+            <MudGrid Spacing="3">
+                <MudItem xs="6" sm="3">
+                    <MudTextField @bind-Value="Model.No" Label="No" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Required="true" RequiredError="Noは必須です。" />
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudSelect T="string" @bind-Value="Model.性別コード" Label="性別" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var o in Options.性別)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="_birth" Label="生年月日" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                   Editable="true" DateFormat="yyyy/MM/dd" Mask="@(new DateMask("0000/00/00"))" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <NameKanaField NameLabel="氏名" KanaLabel="フリガナ"
+                                   @bind-Name="Model.氏名" @bind-Kana="Model.フリガナ"
+                                   Required="true" RequiredError="氏名は必須です。"
+                                   NameHelp="氏名を入力するとフリガナが自動でカナ入力されます。" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" @bind-Value="Model.部門番号" Label="部門" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var o in Options.部門)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudSelect T="string" @bind-Value="Model.役職番号" Label="役職" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-3">
+                        @foreach (var o in Options.役職)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Work" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">在籍</MudText>
+            </MudStack>
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" @bind-Value="Model.就退区分" Label="就退区分" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var o in Options.就退区分)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="_joinLeave" Label="就職・退職日" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                   Editable="true" DateFormat="yyyy/MM/dd" Mask="@(new DateMask("0000/00/00"))"
+                                   HelperText="中途就職・退職・死亡退職の場合は必須です。" />
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Place" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">住所</MudText>
+            </MudStack>
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="4">
+                    <PostalCodeField @bind-Value="Model.郵便番号" />
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="Model.住所１" Label="住所1" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <MudTextField @bind-Value="Model.住所２" Label="住所2（建物名等）" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-3" />
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">給与振込先</MudText>
+            </MudStack>
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="5">
+                    <MudSelect T="string" Value="Model.銀行番号" ValueChanged="OnBankChanged" Label="振込銀行" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var o in Options.銀行)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                @if (!現金支給)
+                {
+                    <MudItem xs="6" sm="3">
+                        <MudSelect T="string" @bind-Value="Model.預金種類" Label="預金種類" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem T="string" Value="@("1")">普通</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("2")">当座</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="6" sm="4">
+                        <MudTextField @bind-Value="Model.口座番号" Label="口座番号" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      InputMode="InputMode.numeric" />
+                    </MudItem>
+                }
+                else
+                {
+                    <MudItem xs="12" sm="7">
+                        <MudAlert Severity="Severity.Info" Dense="true">現金支給のため、預金種類・口座番号は不要です。</MudAlert>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="社会保険・税区分" Icon="@Icons.Material.Filled.HealthAndSafety">
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.HealthAndSafety" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">社会保険</MudText>
+            </MudStack>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">加入する保険をオンにします。</MudText>
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="6"><MudSwitch @bind-Value="健康保険加入" Color="Color.Primary" Label="健康保険" /></MudItem>
+                <MudItem xs="12" sm="6"><MudSwitch @bind-Value="介護保険加入" Color="Color.Primary" Label="介護保険" /></MudItem>
+                <MudItem xs="12" sm="6"><MudSwitch @bind-Value="子育支援加入" Color="Color.Primary" Label="子ども・子育て拠出金" /></MudItem>
+                <MudItem xs="12" sm="6"><MudSwitch @bind-Value="厚生年金加入" Color="Color.Primary" Label="厚生年金" /></MudItem>
+                <MudItem xs="12" sm="6"><MudSwitch @bind-Value="年金基金加入" Color="Color.Primary" Label="年金基金" /></MudItem>
+                <MudItem xs="12" sm="6"><MudSwitch @bind-Value="雇用保険加入" Color="Color.Primary" Label="雇用保険" /></MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">税区分</MudText>
+            </MudStack>
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" @bind-Value="Model.所得税源泉" Label="所得税の源泉徴収区分" Variant="Variant.Outlined" Margin="Margin.Dense"
+                               HelperText="甲欄＝主たる給与、乙欄＝従たる給与。">
+                        @foreach (var o in Options.所得税源泉)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" @bind-Value="Model.本人勤労学生" Label="勤労学生" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var o in Options.勤労学生)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" @bind-Value="Model.本人障害者" Label="本人の障害者区分" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var o in Options.障害者)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" @bind-Value="Model.本人寡婦夫" Label="寡婦・ひとり親" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var o in Options.寡婦夫)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">住民税（月額）</MudText>
+            </MudStack>
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.住民税1_5月" Label="1〜5月" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.住民税6月" Label="6月" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.住民税7_12月" Label="7〜12月" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="配偶者・扶養親族" Icon="@Icons.Material.Filled.FamilyRestroom">
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Diversity3" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">配偶者</MudText>
+            </MudStack>
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" @bind-Value="Model.配偶者区分" Label="配偶者区分" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var o in Options.配偶者区分)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" @bind-Value="Model.配偶者合計所得見積" Label="配偶者の合計所得（見積）" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var o in Options.合計所得見積)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" @bind-Value="Model.配偶者障害者" Label="配偶者の障害者区分" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var o in Options.配偶者障害者)
+                        {
+                            <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">扶養親族（人数）</MudText>
+            </MudStack>
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                ※16歳未満の扶養者は扶養親族数に含めません。ただし、障害者の場合は該当する「内数」に人数を入力してください。
+            </MudAlert>
+            <MudGrid Spacing="3">
+                <MudItem xs="6" sm="3">
+                    <MudNumericField Class="num-right" @bind-Value="Model.扶養親族親族数" Label="扶養親族数" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Adornment="Adornment.End" AdornmentText="人" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudPaper Outlined="true" Class="pa-3" Style="border-left:3px solid var(--mud-palette-primary);">
+                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mb-2">うち内数（扶養親族数に含まれる人数）</MudText>
+                        <MudGrid Spacing="3">
+                            <MudItem xs="6" sm="3">
+                                <MudNumericField Class="num-right" @bind-Value="Model.扶養親族同居老親" Label="内 同居老親等" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                 Min="0" Adornment="Adornment.End" AdornmentText="人" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudNumericField Class="num-right" @bind-Value="Model.扶養親族老人" Label="内 老人扶養親族" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                 Min="0" Adornment="Adornment.End" AdornmentText="人" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudNumericField Class="num-right" @bind-Value="Model.扶養親族特定" Label="内 特定扶養親族" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                 Min="0" Adornment="Adornment.End" AdornmentText="人" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudNumericField Class="num-right" @bind-Value="Model.扶養親族一般障害" Label="内 一般障害者" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                 Min="0" Adornment="Adornment.End" AdornmentText="人" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudNumericField Class="num-right" @bind-Value="Model.扶養親族特別障害" Label="内 特別障害者" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                 Min="0" Adornment="Adornment.End" AdornmentText="人" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                @* 特別障害者の内数（さらに同居の人数） *@
+                                <MudNumericField Class="num-right" @bind-Value="Model.扶養親族同居特別" Label="（内 同居人数）" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                 Min="0" Adornment="Adornment.End" AdornmentText="人"
+                                                 HelperText="特別障害者のうち同居の人数" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudNumericField Class="num-right" @bind-Value="Model.特定親族数" Label="特定親族" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Adornment="Adornment.End" AdornmentText="人"
+                                     HelperText="※年間の所得合計金額が100万円未満" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Dense="true">
+                        源泉徴収税額表の扶養親族等の数（自動計算）：<b>@EmployeeCalc.源泉扶養親族数(Model) 人</b>
+                    </MudAlert>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="給与・割増賃金" Icon="@Icons.Material.Filled.Payments">
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Payments" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">給与</MudText>
+            </MudStack>
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="6">
+                    <MudNumericField Class="num-right" @bind-Value="Model.報酬月額" Label="報酬月額（標準報酬月額）" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円"
+                                     HelperText="給与計算処理では、ここに入力された金額を元に料率表から社会保険料を計算します。（過去給与からの自動算出は今後対応予定）" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField Class="num-right" @bind-Value="Model.日給単価" Label="日給単価（日給者の場合に入力）" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円"
+                                     HelperText="給与計算処理の「日給者賃金計算」で『日給単価×出勤日数』が基本給に代入されます。" />
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.MoreTime" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">割増賃金（単価）</MudText>
+            </MudStack>
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.法定内残業単価" Label="法定内残業単価" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+                <MudItem xs="12" sm="8" Class="d-none d-sm-flex"></MudItem>
+
+                <MudItem xs="6" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.普通残業単価" Label="普通残業単価" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+                <MudItem xs="6" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.普通残業単価60h超" Label="普通残業単価（60時間超）" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="d-none d-sm-flex"></MudItem>
+
+                <MudItem xs="6" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.深夜残業単価" Label="深夜残業単価" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+                <MudItem xs="6" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.深夜残業単価60h超" Label="深夜残業単価（60時間超）" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="d-none d-sm-flex"></MudItem>
+
+                <MudItem xs="6" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.休日残業単価" Label="休日出勤単価" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+                <MudItem xs="6" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.休日残業単価60h超" Label="休日出勤単価（60時間超）" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="d-none d-sm-flex"></MudItem>
+
+                <MudItem xs="6" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.休日深夜残業単価" Label="休日深夜単価" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+                <MudItem xs="6" sm="4">
+                    <MudNumericField Class="num-right" @bind-Value="Model.休日深夜残業単価60h超" Label="休日深夜単価（60時間超）" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Min="0" Format="#,##0" HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="円" />
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudTabPanel>
+  </MudTabs>
+</MudForm>
+
+@code {
+    [Parameter] public Employee Model { get; set; } = new();
+    [Parameter] public EmployeeFormOptions Options { get; set; } = new();
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public EventCallback<int> OnSaved { get; set; }
+    [Parameter] public EventCallback OnDeleted { get; set; }
+
+    private MudForm _form = default!;
+    // 選択タブは回線単位で保持（別従業員へ切替えても、別画面から戻っても直前のタブを維持）。
+    private int ActiveTab { get => TabState.Get("employee-editor"); set => TabState.Set("employee-editor", value); }
+    private bool _saving;
+    private DateTime? _birth;
+    private DateTime? _joinLeave;
+    private Employee? _bound;
+
+    // 振込銀行=現金支給(番号1)のとき預金種類・口座番号は不要。
+    private bool 現金支給 => Model.銀行番号 == "1";
+
+    private void OnBankChanged(string v)
+    {
+        Model.銀行番号 = v;
+        if (v == "1")
+        {
+            // 現金支給に切り替えたら入力値を初期化。
+            Model.預金種類 = "";
+            Model.口座番号 = "";
+        }
+        else if (string.IsNullOrEmpty(Model.預金種類))
+        {
+            Model.預金種類 = "1"; // 銀行を選んだら既定=普通
+        }
+    }
+
+    private bool 健康保険加入 { get => Model.健康保険 == "1"; set => Model.健康保険 = value ? "1" : "2"; }
+    private bool 介護保険加入 { get => Model.介護保険 == "1"; set => Model.介護保険 = value ? "1" : "2"; }
+    private bool 子育支援加入 { get => Model.子育支援 == "1"; set => Model.子育支援 = value ? "1" : "2"; }
+    private bool 厚生年金加入 { get => Model.厚生年金 == "1"; set => Model.厚生年金 = value ? "1" : "2"; }
+    private bool 年金基金加入 { get => Model.年金基金 == "1"; set => Model.年金基金 = value ? "1" : "2"; }
+    private bool 雇用保険加入 { get => Model.雇用保険 == "1"; set => Model.雇用保険 = value ? "1" : "2"; }
+
+    protected override void OnParametersSet()
+    {
+        // 親が別の従業員（別インスタンス）に切り替えたら日付・タブを同期する。
+        if (!ReferenceEquals(_bound, Model))
+        {
+            _bound = Model;
+            _birth = ParseDate(Model.生年月日);
+            _joinLeave = ParseDate(Model.就退年月日);
+            // タブは維持する（従業員を切り替えても直前に開いていたタブのまま）。
+        }
+    }
+
+    /// <summary>親（固定ヘッダーの「更新する」）からも呼べる保存。</summary>
+    public async Task SaveAsync()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid)
+        {
+            Snackbar.Add("入力内容を確認してください。", Severity.Warning);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(Model.フリガナ))
+        {
+            Snackbar.Add("フリガナは必須です。", Severity.Warning);
+            return;
+        }
+
+        Model.生年月日 = FmtDate(_birth);
+        Model.就退年月日 = FmtDate(_joinLeave);
+
+        // 現金支給は預金種類・口座番号を保持しない（既存の不整合データも保存時に初期化）。
+        if (現金支給)
+        {
+            Model.預金種類 = "";
+            Model.口座番号 = "";
+        }
+
+        if (Model.就退区分 is "2" or "3" or "4" && string.IsNullOrEmpty(Model.就退年月日))
+        {
+            Snackbar.Add("中途就職・退職・死亡退職の場合は就職・退職日を入力してください。", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var toSave = Model;
+            int number = await Task.Run(() => Db.SaveEmployee(toSave));
+            Snackbar.Add("従業員を登録しました。", Severity.Success);
+            await OnSaved.InvokeAsync(number);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"登録に失敗しました：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        bool? ok = await Dialog.ShowMessageBoxAsync(
+            "従業員の削除",
+            $"「{Model.氏名}」（No.{Model.No}）を削除します。よろしいですか？",
+            yesText: "削除", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _saving = true;
+        try
+        {
+            int num = Model.Number;
+            await Task.Run(() => Db.DeleteEmployee(num));
+            Snackbar.Add("削除しました。", Severity.Success);
+            await OnDeleted.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"削除に失敗しました：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static DateTime? ParseDate(string s) => DateTime.TryParse(s, out var d) ? d : null;
+    private static string FmtDate(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "";
+}

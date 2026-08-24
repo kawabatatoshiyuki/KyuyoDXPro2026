@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- タイムカード取込(FindTimeCardCsv→AnalyzeTimeCardCsv→ApplyTimeCardImport)を実DBに対して検証する使い捨てハーネス。 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>PayCalcDXPro.TimeCardVerify</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\src\PayCalcDXPro.Web\PayCalcDXPro.Web.csproj" />
+  </ItemGroup>
+
+</Project>

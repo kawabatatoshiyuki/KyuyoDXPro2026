@@ -1,0 +1,408 @@
+@page "/setup/company"
+@using PayCalcDXPro.Data.Company
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject PayCalcDXPro.Web.TabStateService TabState
+
+<PageTitle>会社情報｜給与計算DXPro</PageTitle>
+
+@* ヘッダーは固定（スクロールしても画面上部に留まる）。会社情報全体を1回で登録する。 *@
+<MudPaper Elevation="2" Square="true" Class="company-sticky-header py-3 px-2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Business" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">会社情報</MudText>
+        </MudStack>
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FileDownload"
+                       Href="/setup/company/csv" Target="_top" Disabled="_saving || _loading">
+                CSV出力
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="ReloadAllAsync" Disabled="_saving">
+                元に戻す
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveAllAsync" Disabled="_saving">
+                登録する
+            </MudButton>
+        </MudStack>
+    </MudStack>
+</MudPaper>
+
+<MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="mt-2 spaced-tabs"
+         KeepPanelsAlive="true" @bind-ActivePanelIndex="ActiveTab">
+    <MudTabPanel Text="基本情報" Icon="@Icons.Material.Filled.Business">
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+        }
+        else
+        {
+            <MudForm @ref="_form" Model="_model">
+                <MudPaper Elevation="1" Class="pa-4 mb-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Business" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6">基本情報</MudText>
+                    </MudStack>
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="6">
+                            <NameKanaField NameLabel="会社名" KanaLabel="フリガナ"
+                                           @bind-Name="_model.会社名" @bind-Kana="_model.会社名カナ"
+                                           Required="true" RequiredError="会社名は必須です。"
+                                           NameHelp="名称を入力するとフリガナが自動でカナ入力されます。" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.事業所名" Label="事業所名" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          HelperText="会社名と異なる事業所名がある場合に入力します。" />
+                            <MudTextField @bind-Value="_model.事業種目" Label="事業種目" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-3" />
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+
+                <MudPaper Elevation="1" Class="pa-4 mb-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Place" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6">所在地・連絡先</MudText>
+                    </MudStack>
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="6">
+                            <PostalCodeField @bind-Value="_model.郵便番号" />
+                            <NameKanaField NameLabel="所在地" KanaLabel="フリガナ" Class="mt-3"
+                                           @bind-Name="_model.所在地" @bind-Kana="_model.所在地カナ" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <PhoneField @bind-Value="_model.ＴＥＬ" />
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+
+                <MudPaper Elevation="1" Class="pa-4 mb-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6">代表者・連絡者</MudText>
+                    </MudStack>
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="6">
+                            <NameKanaField NameLabel="代表者名" KanaLabel="フリガナ"
+                                           @bind-Name="_model.代表者名" @bind-Kana="_model.代表者氏名カナ" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <NameKanaField NameLabel="連絡者名" KanaLabel="フリガナ"
+                                           @bind-Name="_model.連絡者名" @bind-Kana="_model.連絡者名カナ" />
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+
+                <MudPaper Elevation="1" Class="pa-4 mb-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Badge" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6">番号区分</MudText>
+                    </MudStack>
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="6">
+                            <MudRadioGroup T="string" @bind-Value="_model.番号区分">
+                                <MudRadio T="string" Value="@("1")" Color="Color.Primary">法人</MudRadio>
+                                <MudRadio T="string" Value="@("2")" Color="Color.Primary">個人事業主</MudRadio>
+                            </MudRadioGroup>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            @if (_model.番号区分 == "1")
+                            {
+                                <MudTextField @bind-Value="_model.事業所マイナンバー" Label="法人番号（13桁）"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="13"
+                                              Validation="@(new Func<string, string?>(ValidateHoujin))" />
+                            }
+                            else
+                            {
+                                <MudAlert Severity="Severity.Info" Dense="true">
+                                    個人事業主のマイナンバーは、セキュア入力画面で別途登録します（次段で提供）。
+                                </MudAlert>
+                            }
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+
+                <MudPaper Elevation="1" Class="pa-4 mb-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6">税務署・整理番号</MudText>
+                    </MudStack>
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_model.税務署名" Label="所轄税務署名" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          HelperText="給与の源泉所得税を納付する所轄の税務署名。" />
+                        </MudItem>
+                        <MudItem xs="6" sm="4">
+                            <MudTextField @bind-Value="_model.署番号" Label="署番号" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="6" sm="4">
+                            <MudTextField @bind-Value="_model.整理番号" Label="整理番号" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+
+                <MudPaper Elevation="1" Class="pa-4 mb-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Payments" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6">支払情報</MudText>
+                    </MudStack>
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_model.支払方法" Label="支払方法" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          HelperText="給与の支払方法及びその期日（例：毎月25日 銀行振込）。" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_model.支払金融機関" Label="支払金融機関" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_model.金融機関所在地" Label="金融機関所在地" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+
+                <MudPaper Elevation="1" Class="pa-4 mb-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Calculate" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6">給与計算設定</MudText>
+                    </MudStack>
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="string" @bind-Value="_model.労働保険適用事業所" Label="労働保険適用事業所" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var o in _労働保険)
+                                {
+                                    <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="string" @bind-Value="_model.年末調整方法" Label="年末調整方法" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var o in _年末調整)
+                                {
+                                    <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="string" @bind-Value="_model.残業手当計算端数処理" Label="残業手当計算の端数処理" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var o in _端数処理)
+                                {
+                                    <MudSelectItem T="string" Value="@o.コード">@o.値</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            </MudForm>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="部門・役職・銀行・提出先" Icon="@Icons.Material.Filled.Category">
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                従業員に割り当てる部門・役職・振込先銀行・報告書の提出先（市区町村）を登録します。
+                先頭の固定行（未設定／現金支給／特別徴収対象外）は自動で用意されます。
+            </MudText>
+
+            <MudGrid Spacing="4">
+                <!-- 部門 -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.AccountTree" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">部門</MudText>
+                        </MudStack>
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                            部門名は「従業員情報登録」で従業員ごとの部門を選択する際に参照されます。
+                        </MudAlert>
+                        @foreach (var d in _masters.部門)
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-2" @key="d">
+                                <MudTextField @bind-Value="d.部門名" Label="部門名" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => _masters.部門.Remove(d))" />
+                            </MudStack>
+                        }
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Text" Color="Color.Primary"
+                                   Disabled="@(_masters.部門.Count >= MaxRows)"
+                                   OnClick="@(() => AddRow(_masters.部門, "部門"))">行を追加（@_masters.部門.Count/@MaxRows）</MudButton>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- 役職 -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.Badge" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">役職</MudText>
+                        </MudStack>
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                            役職名は「従業員情報登録」で従業員ごとの役職を選択する際に参照されます。
+                        </MudAlert>
+                        @foreach (var p in _masters.役職)
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-2" @key="p">
+                                <MudTextField @bind-Value="p.役職名" Label="役職名" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => _masters.役職.Remove(p))" />
+                            </MudStack>
+                        }
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Text" Color="Color.Primary"
+                                   Disabled="@(_masters.役職.Count >= MaxRows)"
+                                   OnClick="@(() => AddRow(_masters.役職, "役職"))">行を追加（@_masters.役職.Count/@MaxRows）</MudButton>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- 銀行 -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">振込先銀行</MudText>
+                        </MudStack>
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                            給与・賞与の振込先である銀行名・支店名を登録します。通常は取引銀行1行で足りますが、
+                            従業員ごとに振込銀行が異なる場合に備えて複数登録できます。
+                            ここで登録した情報は「従業員情報登録」での振込銀行の選択時に参照されます。
+                        </MudAlert>
+                        @foreach (var b in _masters.銀行)
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-2" @key="b">
+                                <MudTextField @bind-Value="b.銀行名" Label="銀行名" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudTextField @bind-Value="b.支店名" Label="支店名" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => _masters.銀行.Remove(b))" />
+                            </MudStack>
+                        }
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Text" Color="Color.Primary"
+                                   Disabled="@(_masters.銀行.Count >= MaxRows)"
+                                   OnClick="@(() => AddRow(_masters.銀行, "振込先銀行"))">行を追加（@_masters.銀行.Count/@MaxRows）</MudButton>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- 報告書提出先 -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.LocationCity" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">報告書提出先（市区町村）</MudText>
+                        </MudStack>
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                            年末調整後に出力する「給与支払報告書（総括表）」の提出先です。
+                            「年末調整計算」本人情報の住民税納付市区町村名で参照されます。
+                            設定しないと総括表に集計されないため、必ず設定してください。<br />
+                            <b>入力の例</b>　市区町村名：柏市／徴収義務者番号：23456-987654
+                        </MudAlert>
+                        @foreach (var r in _masters.提出先)
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-2" @key="r">
+                                <MudTextField @bind-Value="r.市区町村名" Label="市区町村名" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudTextField @bind-Value="r.徴収義務者番号" Label="徴収義務者番号" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => _masters.提出先.Remove(r))" />
+                            </MudStack>
+                        }
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Text" Color="Color.Primary"
+                                   Disabled="@(_masters.提出先.Count >= MaxRows)"
+                                   OnClick="@(() => AddRow(_masters.提出先, "報告書提出先"))">行を追加（@_masters.提出先.Count/@MaxRows）</MudButton>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        }
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private MudForm _form = default!;
+    private CompanyInfo _model = new();
+    private IReadOnlyList<CodeOption> _労働保険 = Array.Empty<CodeOption>();
+    private IReadOnlyList<CodeOption> _年末調整 = Array.Empty<CodeOption>();
+    private IReadOnlyList<CodeOption> _端数処理 = Array.Empty<CodeOption>();
+    private CompanyMasters _masters = new();
+    private bool _loading = true;
+    private bool _saving;
+    // 選択タブは回線単位で保持（別画面から戻っても直前のタブを維持）。
+    private int ActiveTab { get => TabState.Get("company"); set => TabState.Set("company", value); }
+
+    /// <summary>部門・役職・銀行・提出先の登録上限（各50件）。</summary>
+    private const int MaxRows = 50;
+
+    /// <summary>上限（50件）未満のときだけ行を追加する。上限到達時は警告を表示する。</summary>
+    private void AddRow<T>(List<T> list, string label) where T : new()
+    {
+        if (list.Count >= MaxRows)
+        {
+            Snackbar.Add($"{label}は最大{MaxRows}件まで登録できます。", Severity.Warning);
+            return;
+        }
+        list.Add(new T());
+    }
+
+    protected override async Task OnInitializedAsync() => await ReloadAllAsync();
+
+    private async Task ReloadAllAsync()
+    {
+        _loading = true;
+        try
+        {
+            // DPAPI/SQLCipher のI/Oを伴うためUIスレッドを止めない。
+            await Task.Run(() =>
+            {
+                _労働保険 = Db.GetCodeOptions("020");
+                _年末調整 = Db.GetCodeOptions("021");
+                _端数処理 = Db.GetCodeOptions("022");
+                _model = Db.LoadCompany();
+                _masters = Db.LoadMasters();
+            });
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // 会社情報＋4マスタを1回で登録する（タブをまたいで一括保存）。
+    private async Task SaveAllAsync()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid)
+        {
+            ActiveTab = 0; // 入力不備があれば会社情報タブへ戻す
+            Snackbar.Add("入力内容を確認してください。", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var info = _model;
+            var masters = _masters;
+            await Task.Run(() => Db.SaveAll(info, masters));
+            Snackbar.Add("会社情報を登録しました。", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"登録に失敗しました：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string? ValidateHoujin(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return null; // 任意
+        if (value.Length != 13 || !value.All(char.IsDigit))
+            return "法人番号は13桁の数字で入力してください。";
+        return null;
+    }
+}

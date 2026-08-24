@@ -1,0 +1,120 @@
+@inject TimeCardImportService Tc
+
+@* タイムカードCSV取込のプレビュー＆反映ダイアログ。新旧フォーマットを自動判別済みの計画(Plan)を表示し、
+   「反映する」で給与トランへ一括転記する。新フォーマットは残業額の検算差額もあわせて表示する。 *@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6"><MudIcon Icon="@Icons.Material.Filled.UploadFile" Class="mr-2" />タイムカードデータの取込</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="min-width:720px;">
+            <MudText Typo="Typo.body2" Class="mb-2">
+                対象年月：<b>@Plan.対象年月</b>　／　フォーマット：<b>@(_新 ? "新（kyuyo・32列）" : "旧（TmCalc・7列）")</b>
+                　／　ファイル：<span style="font-family:monospace;">@Plan.ファイル名</span>
+            </MudText>
+
+            @if (Plan.年月不一致)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+                    CSVの処理年月が選択中の処理月と一致しない行があります。内容をご確認ください。
+                </MudAlert>
+            }
+
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+                対象 @_対象数 名　／　未登録（スキップ）@_未登録数 件
+            </MudText>
+
+            <MudSimpleTable Dense="true" Hover="true" Bordered="true" Style="max-height:52vh;overflow:auto;">
+                <thead>
+                    <tr>
+                        <th>No</th><th>氏名</th><th>状態</th>
+                        <th style="text-align:right;">基本給</th>
+                        <th style="text-align:right;">出勤</th>
+                        <th style="text-align:right;">労働時間</th>
+                        @if (_新)
+                        {
+                            <th style="text-align:right;">CSV残業額</th>
+                            <th style="text-align:right;">再計算額</th>
+                            <th style="text-align:right;">差額</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Plan.行)
+                    {
+                        <tr style="@(r.未登録 ? "opacity:.55;" : "")">
+                            <td style="font-family:monospace;">@r.No</td>
+                            <td>@r.氏名</td>
+                            <td>
+                                @if (r.未登録)
+                                {
+                                    <MudText Color="Color.Error" Typo="Typo.caption">未登録(スキップ)</MudText>
+                                }
+                                else
+                                {
+                                    <MudText Color="Color.Success" Typo="Typo.caption">対象</MudText>
+                                }
+                            </td>
+                            <td style="text-align:right;">@r.転記?.基本給?.ToString("#,##0")</td>
+                            <td style="text-align:right;">@r.転記?.出勤日数</td>
+                            <td style="text-align:right;">@r.転記?.労働時間</td>
+                            @if (_新)
+                            {
+                                <td style="text-align:right;">@r.Csv残業金額合計?.ToString("#,##0")</td>
+                                <td style="text-align:right;">@r.再計算時間外手当?.ToString("#,##0")</td>
+                                <td style="text-align:right;@(!r.未登録 && r.検算差額 != 0 ? "color:var(--mud-palette-error);font-weight:600;" : "")">
+                                    @(r.未登録 ? "" : r.検算差額.ToString("#,##0"))
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+
+            @if (_新)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1 d-block">
+                    ※ 残業額はタイムカード計算データ側の金額（CSV残業額）をそのまま採用します。「再計算額」は従業員マスタの単価×時間で試算した参考値で、差額（赤字）は単価差の可能性を示します。
+                </MudText>
+            }
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1 d-block">
+                ※ 反映すると当月の給与トランへ転記し、総支給額・税額を再計算します。反映後、取り込んだCSVは削除されます（取込履歴はログに残ります）。
+            </MudText>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_busy">キャンセル</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Apply" Disabled="_busy || _対象数 == 0">
+            @if (_busy)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            反映する（@_対象数 名）
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>解析済みの取込計画（新旧判別済み・DB未反映）。</summary>
+    [Parameter] public TimeCardImportPlan Plan { get; set; } = default!;
+
+    private bool _busy;
+    private bool _新 => Plan.フォーマット == TimeCardCsvFormat.新_Kyuyo;
+    private int _対象数 => Plan.行.Count(r => !r.未登録);
+    private int _未登録数 => Plan.行.Count(r => r.未登録);
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Apply()
+    {
+        _busy = true;
+        try
+        {
+            var res = await Task.Run(() => Tc.ApplyTimeCardImport(Plan));
+            MudDialog.Close(DialogResult.Ok(res));
+        }
+        finally { _busy = false; }
+    }
+}

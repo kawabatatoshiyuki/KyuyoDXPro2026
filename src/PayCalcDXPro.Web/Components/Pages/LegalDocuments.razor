@@ -1,0 +1,152 @@
+@page "/year-end/legal-documents"
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>法定調書の印刷｜給与計算DXPro</PageTitle>
+
+<style>
+    .ld-desc { background:var(--mud-palette-background-grey); border-radius:8px; padding:12px 16px;
+               font-size:0.85rem; line-height:1.6; color:var(--mud-palette-text-secondary); }
+    .ld-box { border:1px solid var(--mud-palette-divider); border-radius:8px; padding:12px 14px; margin-top:14px; position:relative; }
+    .ld-box__cap { position:absolute; top:-10px; left:12px; background:var(--mud-palette-surface); padding:0 6px;
+                   font-size:0.75rem; color:var(--mud-palette-text-secondary); }
+    .ld-box--off { opacity:0.45; }
+    .ld-list { display:flex; flex-direction:column; }
+</style>
+
+@* 固定ヘッダー：タイトル＋プレビュー／PDF出力（合計表と同じ印刷指示バー）。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.Gavel" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">法定調書</MudText>
+            </div>
+        </div>
+        <div class="proc-header__actions">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Preview"
+                       OnClick="Preview">プレビュー</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                       OnClick="OpenPdf">PDF出力（別タブ）</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="3">
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="ld-desc mb-2">
+                年末調整の結果、給与支払報告書（総括表）をはじめとする各種法定調書を印刷します。選択した帳票を1つのPDFに
+                まとめて出力します。各支払調書は登録済みの全件を出力します（提出対象区分で提出分のみに絞れます）。
+            </div>
+
+            @* ① 給与支払報告書（総括表）：他とは排他。 *@
+            <div class="ld-box">
+                <span class="ld-box__cap">給与支払報告書</span>
+                <MudCheckBox T="bool" Value="_soukatu" ValueChanged="OnSoukatuChanged" Color="Color.Primary" Dense="true"
+                             Label="給与支払報告書（総括表）" />
+            </div>
+
+            @* ② 支払調書・合計表：複数選択可（総括表とは排他）。 *@
+            <div class="@($"ld-box {(_soukatu ? "ld-box--off" : "")}")">
+                <span class="ld-box__cap">支払調書・法定調書合計表</span>
+                <div class="ld-list">
+                    @foreach (var r in _payReports)
+                    {
+                        <MudCheckBox T="bool" Value="_checked[r.Key]" ValueChanged="@(v => OnPayReportChanged(r.Key, v))"
+                                     Color="Color.Primary" Dense="true" Disabled="_soukatu" Label="@r.Label" />
+                    }
+                </div>
+            </div>
+
+            @* ③ 提出対象区分：支払調書グループのみ有効（総括表選択時は無効）。 *@
+            <div class="@($"ld-box {(_soukatu ? "ld-box--off" : "")}")">
+                <span class="ld-box__cap">提出対象区分</span>
+                <MudRadioGroup T="int" Value="_teishutu" ValueChanged="v => _teishutu = v">
+                    <MudRadio T="int" Value="1" Color="Color.Primary" Dense="true" Disabled="_soukatu">提出分のみ</MudRadio>
+                    <MudRadio T="int" Value="2" Color="Color.Primary" Dense="true" Disabled="_soukatu">全て印刷</MudRadio>
+                </MudRadioGroup>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="8">
+        <div class="mt-1">
+            @if (string.IsNullOrEmpty(_previewUrl))
+            {
+                <MudPaper Elevation="1" Class="pa-6">
+                    <MudText Class="pa-3" Color="Color.Secondary">
+                        印刷する帳票を選び「プレビュー」を押すと、右側にまとめて表示します。
+                    </MudText>
+                </MudPaper>
+            }
+            else
+            {
+                <iframe src="@_previewUrl" style="width:100%;height:82vh;border:1px solid var(--mud-palette-divider);border-radius:6px;"></iframe>
+            }
+        </div>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private bool _soukatu;
+    private int _teishutu = 1; // 既定＝提出分のみ（現行 optTeishutu）
+    private string _previewUrl = "";
+
+    private sealed record PayReport(string Key, string Label);
+
+    // 現行 F_法定調書印刷 groupBox2 の並び。
+    private static readonly PayReport[] _payReports =
+    {
+        new("taishoku", "退職所得の源泉徴収票・特別徴収票"),
+        new("houshu",   "報酬、料金、契約金及び賞金の支払調書"),
+        new("fudousan", "不動産の使用料等の支払調書"),
+        new("jouto",    "不動産等の譲受けの対価の支払調書"),
+        new("assen",    "不動産等の売買又は貸付けのあっせん手数料の支払調書"),
+        new("goukei",   "給与所得の源泉徴収票等の法定調書合計表"),
+    };
+
+    private readonly Dictionary<string, bool> _checked =
+        _payReports.ToDictionary(r => r.Key, _ => false);
+
+    // 総括表を選ぶと支払調書グループを解除（現行 radioCheckedChanged）。
+    private void OnSoukatuChanged(bool on)
+    {
+        _soukatu = on;
+        if (on)
+            foreach (var r in _payReports) _checked[r.Key] = false;
+        _previewUrl = "";
+    }
+
+    // 支払調書を選ぶと総括表を解除。
+    private void OnPayReportChanged(string key, bool on)
+    {
+        _checked[key] = on;
+        if (on) _soukatu = false;
+        _previewUrl = "";
+    }
+
+    private string? BuildUrl()
+    {
+        if (_soukatu)
+            return "/year-end/legal-documents/pdf?reports=soukatu";
+
+        var keys = _payReports.Where(r => _checked[r.Key]).Select(r => r.Key).ToList();
+        if (keys.Count == 0) return null;
+        return $"/year-end/legal-documents/pdf?reports={string.Join(",", keys)}&teishutu={_teishutu}";
+    }
+
+    private void Preview()
+    {
+        var url = BuildUrl();
+        if (url is null) { Snackbar.Add("印刷する帳票を選択してください。", Severity.Warning); return; }
+        _previewUrl = url;
+    }
+
+    private async Task OpenPdf()
+    {
+        var url = BuildUrl();
+        if (url is null) { Snackbar.Add("印刷する帳票を選択してください。", Severity.Warning); return; }
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+}

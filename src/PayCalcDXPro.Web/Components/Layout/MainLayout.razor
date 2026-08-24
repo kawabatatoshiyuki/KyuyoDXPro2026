@@ -1,0 +1,174 @@
+@inherits LayoutComponentBase
+@inject PayCalcDXPro.Security.TrialGuard Trial
+@inject LocalDatabaseService Db
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<MudThemeProvider Theme="@_theme" @bind-IsDarkMode="_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@if (Trial.Evaluation.Blocked)
+{
+    @* 体験版の年度ロックでブロック中：アプリ本体は表示せず、案内のみを全面表示する。 *@
+    <div class="trial-block">
+        <MudPaper Elevation="3" Class="pa-8" Style="max-width:560px; text-align:center;">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Warning" Style="font-size:4rem;" />
+            <MudText Typo="Typo.h5" Class="mt-4 mb-2">体験版をご利用いただけません</MudText>
+            <MudText Typo="Typo.body1" Style="white-space:pre-line;">@Trial.Evaluation.Message</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-6 d-block">給与計算DXPro ブラウザ版（体験版）</MudText>
+        </MudPaper>
+    </div>
+}
+else
+{
+<MudLayout>
+    <MudAppBar Elevation="0" Class="pcx-appbar">
+        @* メニュー（三本線）：勤怠管理DXProの .nav-hamburger と同じ span×3 構造。
+           px 固定なので文字サイズ切替（rem）の影響を受けない。 *@
+        <button type="button" class="pcx-hamburger" @onclick="ToggleDrawer" aria-label="メニュー開閉">
+            <span></span><span></span><span></span>
+        </button>
+        <img src="img/DXPro2026.png" class="pcx-logo-img ml-2" alt="給与計算DXPro" />
+        <MudText Typo="Typo.h6" Class="pcx-logo-text ml-2">給与計算DXPro</MudText>
+        <MudSpacer />
+
+        @* 文字サイズ切替（小/中/大）：勤怠管理DXProのヘッダー機能を移植 *@
+        <div class="pcx-fontsize" role="group" aria-label="文字サイズ">
+            <button type="button" class="@FsClass("s")" @onclick='@(() => SetFontScale("s"))'>小</button>
+            <button type="button" class="@FsClass("m")" @onclick='@(() => SetFontScale("m"))'>中</button>
+            <button type="button" class="@FsClass("l")" @onclick='@(() => SetFontScale("l"))'>大</button>
+        </div>
+
+        <MudTooltip Text="@(_isDarkMode ? "ライトモード" : "ダークモード")">
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit" OnClick="@(() => _isDarkMode = !_isDarkMode)" />
+        </MudTooltip>
+
+        @if (_accountExists && !string.IsNullOrWhiteSpace(_operatorName))
+        {
+            @* ログイン操作者のチップ（丸アバター＋操作者名） *@
+            <div class="pcx-user" title="@_operatorName">
+                <div class="pcx-avatar">@_avatarInitial</div>
+                <div class="pcx-username">@_operatorName</div>
+            </div>
+        }
+        @if (_accountExists)
+        {
+            <MudTooltip Text="ログアウト">
+                <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="ログアウト" />
+            </MudTooltip>
+        }
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="2" ClipMode="DrawerClipMode.Always"
+               Variant="@DrawerVariant.Responsive" Breakpoint="Breakpoint.Md">
+        <MudDrawerHeader>
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.subtitle1" Style="font-weight:700;">給与計算DXPro</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">2026年版　Ver.@_appVersion</MudText>
+            </MudStack>
+        </MudDrawerHeader>
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-6 px-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+}
+
+<div id="blazor-error-ui">
+    予期しないエラーが発生しました。
+    <a href="" class="reload">再読み込み</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDarkMode;
+    private bool _accountExists;
+    private string _operatorName = "";
+    private string _avatarInitial = "";
+    private string _fontScale = "m";
+
+    // 表示バージョン（csproj の <Version> をアセンブリから取得）。リリース時は csproj を更新するだけでよい。
+    private static readonly string _appVersion =
+        System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "";
+
+    protected override void OnInitialized()
+    {
+        try { _accountExists = Db.SecurityAccountExists(); }
+        catch { _accountExists = false; }
+
+        // ログイン操作者名（Cookie の実ユーザー）をヘッダーのチップに表示する。
+        _operatorName = Db.CurrentOperator?.Name ?? "";
+        _avatarInitial = string.IsNullOrWhiteSpace(_operatorName) ? "" : _operatorName.Trim().Substring(0, 1);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // 保存済みの文字サイズを適用し、ボタンの選択状態を同期する。
+            // JS 未ロード等で失敗しても回路（他のインタラクティブ機能）を落とさないよう握りつぶす。
+            try
+            {
+                _fontScale = await JS.InvokeAsync<string>("payUi.initFontScale");
+                StateHasChanged();
+            }
+            catch { /* 文字サイズの復元に失敗しても致命的ではない */ }
+        }
+    }
+
+    private async Task SetFontScale(string size)
+    {
+        try { _fontScale = await JS.InvokeAsync<string>("payUi.setFontScale", size); }
+        catch { _fontScale = size; }
+    }
+
+    // 選択中の文字サイズボタンに active クラスを付与する。
+    private string FsClass(string size) => _fontScale == size ? "active" : "";
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private void ログアウト() => Nav.NavigateTo("/logout", forceLoad: true);
+
+    // 業務アプリ向けの落ち着いた配色（ディープインディゴ系）。
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#3949AB",
+            Secondary = "#5C6BC0",
+            // アプリタイトル部（ヘッダー）は勤怠管理DXProに寄せた白基調。
+            AppbarBackground = "#FFFFFF",
+            AppbarText = "#18181B",
+            Background = "#F5F6FA",
+            DrawerBackground = "#FFFFFF",
+            DrawerText = "#37474F",
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#7986CB",
+            Secondary = "#9FA8DA",
+            // ダーク時はサーフェス相当のダーク背景（勤怠側 body.dark と同系）。
+            AppbarBackground = "#1B1C20",
+            AppbarText = "#E8E8EA",
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography
+            {
+                FontFamily = new[] { "Noto Sans JP", "Roboto", "Helvetica", "Arial", "sans-serif" }
+            }
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "10px",
+        }
+    };
+}

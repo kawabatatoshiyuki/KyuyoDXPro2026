@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!--
+      本番ターゲットは .NET 8 LTS。
+      ただし開発機に .NET 9 ランタイムしか無い場合でも build / test / run できるよう、
+      実行時のメジャーロールフォワードを許可する（.NET 8 ランタイムがあればそちらが優先される）。
+    -->
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+</Project>

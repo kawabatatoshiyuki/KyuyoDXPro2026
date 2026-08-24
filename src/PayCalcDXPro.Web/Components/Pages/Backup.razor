@@ -1,0 +1,313 @@
+@page "/settings/backup"
+@inject LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject IJSRuntime JS
+
+<PageTitle>バックアップ＆復元｜給与計算DXPro</PageTitle>
+
+<style>
+    .bk-desc { background:var(--mud-palette-background-grey); border-radius:8px; padding:12px 16px;
+               font-size:0.85rem; line-height:1.6; color:var(--mud-palette-text-secondary); }
+    .bk-path { font-family:monospace; word-break:break-all; }
+    .bk-row { cursor:pointer; }
+    .bk-row.selected td { background-color:var(--mud-palette-primary-hover) !important;
+                          box-shadow:inset 3px 0 0 var(--mud-palette-primary); font-weight:500; }
+</style>
+
+@* 固定ヘッダー：タイトル。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.Backup" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">バックアップ＆復元</MudText>
+            </div>
+        </div>
+        <div class="proc-header__actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="設定保存" Disabled="_busy">設定を保存</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="3" Class="pa-2">
+    <MudItem xs="12" md="8">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="bk-desc mb-4">
+                「今すぐバックアップ」でデータベースのバックアップファイルを作成します。バックアップ先には
+                <span class="bk-path">yyyyMMddHHmmss_［コメント_］PayCalcDXPro.db</span> という名前で保存されます。
+                バックアップは暗号化されたままコピーされ、<strong>同じPC（このサーバー）で復元</strong>できます
+                （復号鍵はこのPCに保管されています）。バックアップ先はこのPC上のフォルダパスを指定してください。
+            </div>
+
+            <div class="proc-section-title">バックアップ先</div>
+            <div class="d-flex align-center gap-3 mb-2">
+                <MudTextField @bind-Value="_dir" Variant="Variant.Outlined" Margin="Margin.Dense" Class="flex-grow-1"
+                              Placeholder="例）C:\PayCalcDXPro\backups" Label="バックアップ先フォルダ" />
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FolderOpen"
+                           OnClick="フォルダ参照" Disabled="_busy">参照</MudButton>
+            </div>
+            <MudTextField @bind-Value="_comment" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Label="コメント（任意・ファイル名に付きます）" Class="mb-4" />
+
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.CloudUpload"
+                       OnClick="今すぐバックアップ" Disabled="_busy">今すぐバックアップする</MudButton>
+
+            @if (!string.IsNullOrEmpty(_lastPath))
+            {
+                <MudAlert Severity="Severity.Success" Class="mt-4" Dense="true">
+                    バックアップを作成しました：<span class="bk-path">@_lastPath</span>
+                </MudAlert>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-4" Style="height:100%;">
+            <div class="proc-section-title">自動バックアップ</div>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+                「する」にすると、アプリ（サーバー）の終了時に上記のバックアップ先へ自動でバックアップします。
+            </MudText>
+            <MudRadioGroup T="bool" @bind-Value="_auto">
+                <MudRadio T="bool" Value="true" Color="Color.Primary" Dense="true">する</MudRadio>
+                <MudRadio T="bool" Value="false" Color="Color.Primary" Dense="true">しない</MudRadio>
+            </MudRadioGroup>
+        </MudPaper>
+    </MudItem>
+
+    @* バックアップから復元・取込：まず対象ファイルを選択し、下のいずれかの操作を実行する *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">バックアップから復元・取込</div>
+            <div class="bk-desc mb-3">
+                バックアップ先フォルダにあるバックアップファイル（<span class="bk-path">*PayCalc*.db</span>）を選び、
+                下の<strong>「全体を復元」</strong>または<strong>「前年データ取込（マスタのみ）」</strong>を実行します。
+                このPCで作成したバックアップに加え、<strong>Windows版（デスクトップ版）のバックアップ</strong>も取込めます
+                （<strong>旧バージョンのバックアップも可</strong>。ファイルの形式は自動判別します）。
+            </div>
+
+            @* ① 対象ファイルの選択 *@
+            <div class="d-flex align-center gap-3 mb-2">
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="一覧更新" Disabled="_busy">一覧を更新</MudButton>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">対象フォルダ：<span class="bk-path">@_dir</span></MudText>
+            </div>
+
+            @if (_files.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-2">
+                    「一覧を更新」を押すと、対象フォルダ内のバックアップファイルを表示します。
+                </MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Hover="true" Bordered="true" Class="mb-2">
+                    <thead>
+                        <tr><th style="width:40px;"></th><th>ファイル名</th><th>更新日時</th><th style="text-align:right;">サイズ</th><th style="width:56px;text-align:center;">削除</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in _files)
+                        {
+                            <tr class="bk-row @(f.FullPath == _selected ? "selected" : "")" @onclick="@(() => _selected = f.FullPath)">
+                                <td><MudRadio T="string" Value="@f.FullPath" @bind-SelectedOption="_selected" Dense="true" /></td>
+                                <td class="bk-path">@f.FileName</td>
+                                <td>@f.DateText</td>
+                                <td style="text-align:right;">@f.SizeText</td>
+                                <td style="text-align:center;" @onclick:stopPropagation="true">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                                   OnClick="@(() => 削除(f))"
+                                                   Disabled="_busy" Title="このバックアップを削除" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+
+                <MudText Typo="Typo.body2" Class="mb-3">
+                    選択中：<span class="bk-path">@(string.IsNullOrEmpty(_selected) ? "（未選択）" : System.IO.Path.GetFileName(_selected))</span>
+                </MudText>
+
+                @* ② 選択したファイルに対する操作（全体復元 / 前年データ取込） *@
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="6">
+                        <MudPaper Outlined="true" Class="pa-4" Style="height:100%;">
+                            <div class="proc-section-title">全体を復元</div>
+                            <div class="bk-desc mb-3">
+                                選択したバックアップの内容で<strong>すべてのデータを置き換えます（元に戻せません）</strong>。
+                                バックアップ時点の状態に戻したいときに使います。
+                            </div>
+                            <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.SettingsBackupRestore"
+                                       OnClick="復元" Disabled="_busy || string.IsNullOrEmpty(_selected)">全体を復元する</MudButton>
+                        </MudPaper>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudPaper Outlined="true" Class="pa-4" Style="height:100%;">
+                            <div class="proc-section-title">前年データ取込（マスタのみ）</div>
+                            <div class="bk-desc mb-3">
+                                新年度の開始時に、前年のバックアップから<strong>マスタ項目のみ</strong>
+                                （会社情報・部門・役職・銀行・報告書提出先・支給控除項目設定・従業員・マイナンバー）を引き継ぎます。
+                                給与・賞与・年末調整などの計算データは取込みません。住民税（特別徴収）は前年の7〜12月分を新年度の1〜5月分へ繰り越します。
+                            </div>
+                            <MudText Typo="Typo.subtitle2">退職者の扱い</MudText>
+                            <MudRadioGroup T="bool" @bind-Value="_退職者消去">
+                                <MudRadio T="bool" Value="true" Color="Color.Primary" Dense="true">退職者は消去する</MudRadio>
+                                <MudRadio T="bool" Value="false" Color="Color.Primary" Dense="true">そのまま取り込む</MudRadio>
+                            </MudRadioGroup>
+                            <MudButton Variant="Variant.Filled" Color="Color.Warning" Class="mt-2"
+                                       StartIcon="@Icons.Material.Filled.SwapVerticalCircle"
+                                       OnClick="前年取込" Disabled="_busy || string.IsNullOrEmpty(_selected)">マスタを取込む</MudButton>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+            }
+
+            @if (!string.IsNullOrEmpty(_doneMsg))
+            {
+                <MudAlert Severity="Severity.Success" Class="mt-4" Dense="true">
+                    @_doneMsg 反映のため画面を再読み込みしてください。
+                    <MudButton Variant="Variant.Text" Color="Color.Inherit" Class="ml-2"
+                               OnClick="再読み込み">今すぐ再読み込み</MudButton>
+                </MudAlert>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string _dir = "";
+    private string _comment = "";
+    private bool _auto;
+    private bool _busy;
+    private string _lastPath = "";
+
+    private IReadOnlyList<BackupFileInfo> _files = Array.Empty<BackupFileInfo>();
+    private string _selected = "";
+    private string _doneMsg = "";
+    private bool _退職者消去 = true;
+
+    protected override void OnInitialized()
+    {
+        var s = Db.LoadBackupSettings();
+        _dir = s.先;
+        _auto = s.自動;
+    }
+
+    private async Task フォルダ参照()
+    {
+        var parameters = new DialogParameters { ["StartPath"] = _dir ?? "" };
+        var dialog = await Dialog.ShowAsync<Components.Shared.FolderBrowserDialog>("フォルダの選択", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data is string path && !string.IsNullOrEmpty(path))
+            _dir = path;
+    }
+
+    private void 今すぐバックアップ()
+    {
+        _busy = true;
+        _lastPath = "";
+        try
+        {
+            var r = Db.RunBackupNow(_dir, _comment);
+            if (r.Ok)
+            {
+                _lastPath = r.Path ?? "";
+                Snackbar.Add(r.Message, Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add(r.Message, Severity.Error);
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"バックアップに失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private void 設定保存()
+    {
+        _busy = true;
+        try
+        {
+            var r = Db.SaveBackupSettings(_dir, _auto);
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+        }
+        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private void 一覧更新()
+    {
+        _selected = "";
+        _files = Db.ListBackupFiles(_dir);
+        if (_files.Count == 0) Snackbar.Add("対象フォルダにバックアップファイル（*PayCalc*.db）がありません。", Severity.Info);
+    }
+
+    private async Task 削除(BackupFileInfo f)
+    {
+        bool? ok = await Dialog.ShowMessageBoxAsync("削除の確認",
+            $"「{f.FileName}」を削除します。この操作は元に戻せません。よろしいですか？",
+            yesText: "削除する", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        try
+        {
+            var r = Db.DeleteBackupFile(f.FullPath);
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+            if (r.Ok)
+            {
+                if (_selected == f.FullPath) _selected = "";
+                _files = Db.ListBackupFiles(_dir);
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"削除に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task 復元()
+    {
+        if (string.IsNullOrEmpty(_selected)) return;
+        string name = _files.FirstOrDefault(f => f.FullPath == _selected)?.FileName ?? _selected;
+        bool? ok = await Dialog.ShowMessageBoxAsync("復元の確認",
+            $"「{name}」で現在のデータをすべて置き換えます。この操作は元に戻せません。よろしいですか？",
+            yesText: "復元する", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        _doneMsg = "";
+        try
+        {
+            var r = Db.RestoreFromBackup(_selected);
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+            if (r.Ok) _doneMsg = "復元が完了しました。";
+        }
+        catch (Exception ex) { Snackbar.Add($"復元に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task 前年取込()
+    {
+        if (string.IsNullOrEmpty(_selected)) return;
+        string name = _files.FirstOrDefault(f => f.FullPath == _selected)?.FileName ?? _selected;
+        bool? ok = await Dialog.ShowMessageBoxAsync("前年データ取込の確認",
+            $"「{name}」からマスタ項目（会社・従業員など）を取込みます。現在のマスタ・従業員データは置き換わります" +
+            $"（退職者は{(_退職者消去 ? "消去します" : "そのまま取り込みます")}）。よろしいですか？",
+            yesText: "取込む", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        _doneMsg = "";
+        try
+        {
+            var r = Db.RestoreMastersFromBackup(_selected, _退職者消去);
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+            if (r.Ok) _doneMsg = "前年データ（マスタ項目）の取込が完了しました。";
+        }
+        catch (Exception ex) { Snackbar.Add($"取込に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task 再読み込み() => await JS.InvokeVoidAsync("location.reload");
+}

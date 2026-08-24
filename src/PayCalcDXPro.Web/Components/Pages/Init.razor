@@ -1,0 +1,318 @@
+@page "/settings/init"
+@using System.Linq
+@inject LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>データ初期化｜給与計算DXPro</PageTitle>
+
+<style>
+    .init-desc { background:var(--mud-palette-background-grey); border-radius:8px; padding:12px 16px;
+                 font-size:0.85rem; line-height:1.6; color:var(--mud-palette-text-secondary); }
+    .init-row { padding:10px 0; }
+    .init-row + .init-row { border-top:1px solid var(--mud-palette-divider); }
+    .init-row__head { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .init-row__title { font-weight:600; }
+    .init-row__note { font-size:0.82rem; color:var(--mud-palette-text-secondary); line-height:1.6; margin-top:2px; }
+</style>
+
+@* 固定ヘッダー。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.RestartAlt" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">データ初期化</MudText>
+            </div>
+        </div>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="3" Class="pa-2">
+    <MudItem xs="12">
+        <div class="init-desc">
+            登録済みのデータを初期化（削除）します。<strong>操作は取り消せません。</strong>
+            依存するデータ（給与・賞与・年末調整など）が残っている項目は、先にそれらを初期化する必要があります。
+            実行前に必要に応じて<MudLink Href="/settings/backup">バックアップ</MudLink>を取得してください。
+        </div>
+    </MudItem>
+
+    @* 全データ初期化（最も破壊的・依存ガード無しで一括削除） *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4" Style="border:1px solid var(--mud-palette-error);">
+            <div class="init-row__head">
+                <MudText Typo="Typo.h6" Color="Color.Error">全データ初期化</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.DeleteSweep"
+                           OnClick="実行全データ" Disabled="_busy">全データを初期化</MudButton>
+            </div>
+            <div class="init-row__note mt-2">
+                会社情報・部門・役職・銀行・報告書提出先・支給控除項目設定・支給日情報・従業員情報・マイナンバー・
+                給与／賞与の計算データ・年末調整・各支払調書・操作ログを<strong>すべて削除</strong>し、初期状態に戻します。
+                個別に初期化する必要はありません。<strong>この操作は取り消せません。</strong>
+                実行前に必ず<MudLink Href="/settings/backup">バックアップ</MudLink>を取得してください。
+                （セキュリティアカウント設定・バックアップ設定は削除されません。）
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* 計算データ *@
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="1" Class="pa-4" Style="height:100%;">
+            <div class="proc-section-title">給与・賞与の計算データ</div>
+
+            @* 給与計算データ：月分（支給回）を選んで初期化。「すべての月分」で全12回分。 *@
+            <div class="init-row">
+                <div class="init-row__head">
+                    <div class="init-row__title">給与計算データ</div>
+                    <div class="d-flex align-center" style="gap:8px;">
+                        <MudSelect T="int" @bind-Value="_給与Scope" Label="対象月分" Dense="true"
+                                   Variant="Variant.Outlined" Style="min-width:180px;" Disabled="_busy">
+                            <MudSelectItem T="int" Value="0">すべての月分</MudSelectItem>
+                            @foreach (var r in _給与候補)
+                            {
+                                int v = r.支給回;
+                                <MudSelectItem T="int" Value="v">@r.ラベル</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.DeleteForever"
+                                   OnClick="実行給与" Disabled="_busy">初期化</MudButton>
+                    </div>
+                </div>
+                <div class="init-row__note">給与トランを削除し、支給日の処理済みフラグと年末調整の給与関連項目をクリアします。月分を選ぶとその1か月分のみ初期化します。</div>
+            </div>
+
+            @* 賞与計算データ：回目を選んで初期化。「すべての回」で全4回分。 *@
+            <div class="init-row">
+                <div class="init-row__head">
+                    <div class="init-row__title">賞与計算データ</div>
+                    <div class="d-flex align-center" style="gap:8px;">
+                        <MudSelect T="int" @bind-Value="_賞与Scope" Label="対象回" Dense="true"
+                                   Variant="Variant.Outlined" Style="min-width:180px;" Disabled="_busy">
+                            <MudSelectItem T="int" Value="0">すべての回</MudSelectItem>
+                            @foreach (var r in _賞与候補)
+                            {
+                                int v = r.回;
+                                <MudSelectItem T="int" Value="v">@r.ラベル</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.DeleteForever"
+                                   OnClick="実行賞与" Disabled="_busy">初期化</MudButton>
+                    </div>
+                </div>
+                <div class="init-row__note">賞与トランを削除し、賞与の処理済みフラグと年末調整の賞与関連項目をクリアします。回を選ぶとその1回分のみ初期化します。</div>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* ログ *@
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="1" Class="pa-4" Style="height:100%;">
+            <div class="proc-section-title">操作ログ</div>
+            @Row("アクセスログ", "操作ログ（アクセスログ）をすべて削除します。",
+                 () => Db.Initアクセスログ())
+        </MudPaper>
+    </MudItem>
+
+    @* 年末調整データ（結果クリア＋支払調書削除） *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title d-flex justify-space-between align-center">
+                <span>年末調整データ</span>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.DeleteForever"
+                           OnClick="実行年末調整" Disabled="_busy">初期化</MudButton>
+            </div>
+            <div class="init-row__note mb-3">
+                年末調整の計算結果（年末調整テーブルの全項目）を初期化します。
+                あわせて、下でチェックした支払調書の登録データを削除します（データのある調書のみ選択できます）。
+                マイナンバー（本人・配偶者・扶養親族）・従業員情報・給与／賞与データは残ります。
+            </div>
+            @if (_targets is null)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+            }
+            else
+            {
+                <div class="d-flex gap-2 mb-2">
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="全て選択"
+                               Disabled="@(_busy || !_targets.Any(t => t.HasData))">全て選択</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="選択解除"
+                               Disabled="@(_busy || _selected.Count == 0)">選択解除</MudButton>
+                </div>
+                @foreach (var t in _targets)
+                {
+                    <div>
+                        <MudCheckBox T="bool" Dense="true"
+                                     Value="@_selected.Contains(t.Key)"
+                                     Disabled="@(_busy || !t.HasData)"
+                                     ValueChanged="@(v => 切替(t.Key, v))"
+                                     Label="@(t.HasData ? t.Label : $"{t.Label}（データなし）")" />
+                    </div>
+                }
+            }
+        </MudPaper>
+    </MudItem>
+
+    @* 登録情報・マスタ（依存チェックあり） *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">登録情報・マスタ（依存データがあると初期化できません）</div>
+            @Row("従業員情報", "従業員情報・年末調整・マイナンバー情報を削除します。給与／賞与／年末調整のデータが残っていると実行できません。",
+                 () => Db.Init従業員情報())
+            @Row("支給日情報", "支給日情報を削除し、会社情報の支給日登録フラグを未登録に戻します。給与／賞与／年末調整のデータが残っていると実行できません。",
+                 () => Db.Init支給日情報())
+            @Row("支給・控除項目設定", "支給・控除項目の設定を初期状態に戻します。給与／賞与／年末調整のデータが残っていると実行できません。",
+                 () => Db.Init支給控除項目設定())
+            @Row("会社情報", "会社情報・部門・役職・銀行・報告書提出先・支給控除項目設定を削除します。支給日情報・従業員情報が残っていると実行できません。",
+                 () => Db.Init会社情報())
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private bool _busy;
+
+    private IReadOnlyList<YearEndInitTarget>? _targets;
+    private readonly HashSet<string> _selected = new();
+
+    // 計算データ初期化の対象スコープ（0＝すべて、給与は支給回1-12／賞与は回1-4）。
+    private int _給与Scope;
+    private int _賞与Scope;
+    // 初期化対象に選べる登録済みの支給回・賞与回（支給日情報に登録があるもののみ）。
+    private IReadOnlyList<PayRoundOption> _給与候補 = Array.Empty<PayRoundOption>();
+    private IReadOnlyList<BonusRoundOption> _賞与候補 = Array.Empty<BonusRoundOption>();
+
+    protected override void OnInitialized() => 再読込();
+
+    private void 再読込()
+    {
+        try { _targets = Db.YearEnd支払調書対象(); }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"支払調書の読み込みに失敗しました：{ex.Message}", Severity.Error);
+            _targets = Array.Empty<YearEndInitTarget>();
+        }
+        try
+        {
+            // 支給日情報に登録済みの月分・回のみを初期化スコープの選択肢にする。
+            _給与候補 = Db.LoadPayrollMeta(1).支給回候補.Where(r => r.登録済).ToArray();
+            _賞与候補 = Db.LoadBonusMeta(1).賞与回候補.Where(r => r.登録済).ToArray();
+        }
+        catch (Exception ex) { Snackbar.Add($"支給日情報の読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        _selected.Clear();
+    }
+
+    private async Task 実行給与()
+    {
+        string scope = _給与Scope == 0
+            ? "すべての月分"
+            : (_給与候補.FirstOrDefault(r => r.支給回 == _給与Scope)?.ラベル ?? $"第{_給与Scope}回");
+        bool? ok = await Dialog.ShowMessageBoxAsync("確認",
+            $"給与計算データ（{scope}）を初期化します。削除したデータは元に戻せません。よろしいですか？",
+            yesText: "初期化する", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        try
+        {
+            var r = Db.Init給与計算データ(_給与Scope == 0 ? null : _給与Scope);
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+        }
+        catch (Exception ex) { Snackbar.Add($"初期化に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task 実行賞与()
+    {
+        string scope = _賞与Scope == 0
+            ? "すべての回"
+            : (_賞与候補.FirstOrDefault(r => r.回 == _賞与Scope)?.ラベル ?? $"第{_賞与Scope}回");
+        bool? ok = await Dialog.ShowMessageBoxAsync("確認",
+            $"賞与計算データ（{scope}）を初期化します。削除したデータは元に戻せません。よろしいですか？",
+            yesText: "初期化する", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        try
+        {
+            var r = Db.Init賞与計算データ(_賞与Scope == 0 ? null : _賞与Scope);
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+        }
+        catch (Exception ex) { Snackbar.Add($"初期化に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private void 切替(string key, bool on)
+    {
+        if (on) _selected.Add(key); else _selected.Remove(key);
+    }
+
+    private void 全て選択()
+    {
+        foreach (var t in _targets!.Where(t => t.HasData)) _selected.Add(t.Key);
+    }
+
+    private void 選択解除() => _selected.Clear();
+
+    private async Task 実行全データ()
+    {
+        bool? ok = await Dialog.ShowMessageBoxAsync("全データ初期化の確認",
+            "会社情報・従業員・給与／賞与・年末調整・各支払調書・操作ログを含む、登録されたすべてのデータを削除して初期状態に戻します。削除したデータは元に戻せません。本当に実行しますか？",
+            yesText: "すべて初期化する", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        try
+        {
+            var r = Db.Init全データ();
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+            if (r.Ok) 再読込();
+        }
+        catch (Exception ex) { Snackbar.Add($"初期化に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task 実行年末調整()
+    {
+        bool? ok = await Dialog.ShowMessageBoxAsync("確認",
+            "年末調整データを初期化します。年末調整の計算結果と、選択した支払調書のデータを削除します。マイナンバーは削除しません。削除したデータは元に戻せません。よろしいですか？",
+            yesText: "初期化する", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        try
+        {
+            var r = Db.Init年末調整データ(_selected.ToArray());
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+            if (r.Ok) 再読込();
+        }
+        catch (Exception ex) { Snackbar.Add($"初期化に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private RenderFragment Row(string title, string note, Func<InitResult> op) =>
+        @<div class="init-row">
+            <div class="init-row__head">
+                <div class="init-row__title">@title</div>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.DeleteForever"
+                           OnClick="@(() => 実行(title, op))" Disabled="_busy">初期化</MudButton>
+            </div>
+            <div class="init-row__note">@note</div>
+         </div>;
+
+    private async Task 実行(string title, Func<InitResult> op)
+    {
+        bool? ok = await Dialog.ShowMessageBoxAsync("確認",
+            $"「{title}」を初期化します。削除したデータは元に戻せません。よろしいですか？",
+            yesText: "初期化する", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        try
+        {
+            var r = op();
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+        }
+        catch (Exception ex) { Snackbar.Add($"初期化に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+}

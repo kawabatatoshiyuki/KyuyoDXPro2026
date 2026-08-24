@@ -1,0 +1,228 @@
+is_global = true
+build_property.EnableAotAnalyzer = 
+build_property.EnableSingleFileAnalyzer = true
+build_property.EnableTrimAnalyzer = 
+build_property.IncludeAllContentForSelfExtract = 
+build_property.MudDebugAnalyzer = 
+build_property.MudAllowedAttributePattern = 
+build_property.MudAllowedAttributeList = 
+build_property.TargetFramework = net8.0
+build_property.TargetPlatformMinVersion = 
+build_property.UsingMicrosoftNETSdkWeb = true
+build_property.ProjectTypeGuids = 
+build_property.InvariantGlobalization = 
+build_property.PlatformNeutralAssembly = 
+build_property.EnforceExtendedAnalyzerRules = 
+build_property._SupportedPlatformList = Linux,macOS,Windows
+build_property.RootNamespace = PayCalcDXPro.Web
+build_property.RootNamespace = PayCalcDXPro.Web
+build_property.ProjectDir = C:\PayCalcDXPro\src\PayCalcDXPro.Web\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = 
+build_property.RazorLangVersion = 8.0
+build_property.SupportLocalizedComponentNames = 
+build_property.GenerateRazorMetadataSourceChecksumAttributes = 
+build_property.MSBuildProjectDirectory = C:\PayCalcDXPro\src\PayCalcDXPro.Web
+build_property._RazorSourceGeneratorDebug = 
+build_property.EffectiveAnalysisLevelStyle = 8.0
+build_property.EnableCodeStyleSeverity = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/App.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xBcHAucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Layout/NavMenu.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcTmF2TWVudS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Account.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBY2NvdW50LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/AuditLog.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBdWRpdExvZy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Backup.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xCYWNrdXAucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Bonus.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xCb251cy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/ComingSoon.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDb21pbmdTb29uLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Company.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDb21wYW55LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Employees.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xFbXBsb3llZXMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Error.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xFcnJvci5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Help.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIZWxwLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Home.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIb21lLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Init.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xJbml0LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/InsuranceRates.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xJbnN1cmFuY2VSYXRlcy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Items.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xJdGVtcy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/LegalDocuments.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xMZWdhbERvY3VtZW50cy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/LegalRecord.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xMZWdhbFJlY29yZC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/MyNumber.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xNeU51bWJlci5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Paydays.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQYXlkYXlzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/PayReportSummary.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQYXlSZXBvcnRTdW1tYXJ5LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Payroll.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQYXlyb2xsLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Payslip.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQYXlzbGlwLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/RealEstate.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xSZWFsRXN0YXRlLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/RealEstateMediation.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xSZWFsRXN0YXRlTWVkaWF0aW9uLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/RealEstateTransfer.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xSZWFsRXN0YXRlVHJhbnNmZXIucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Reports.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xSZXBvcnRzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Retirement.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xSZXRpcmVtZW50LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Reward.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xSZXdhcmQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/SetupLedger.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTZXR1cExlZGdlci5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/Summary.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTdW1tYXJ5LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/TaxTable.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xUYXhUYWJsZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/TimeCardSetting.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xUaW1lQ2FyZFNldHRpbmcucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/WageLedger.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xXYWdlTGVkZ2VyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/WageLedgerEmp.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xXYWdlTGVkZ2VyRW1wLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/WithholdingSlip.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xXaXRoaG9sZGluZ1NsaXAucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Routes.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xSb3V0ZXMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Shared/DateInput.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcRGF0ZUlucHV0LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Shared/EmployeeCsvExportDialog.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcRW1wbG95ZWVDc3ZFeHBvcnREaWFsb2cucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Shared/EmployeeEditor.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcRW1wbG95ZWVFZGl0b3IucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Shared/FolderBrowserDialog.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcRm9sZGVyQnJvd3NlckRpYWxvZy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Shared/MoneyField.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcTW9uZXlGaWVsZC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Shared/MyNumberInputDialog.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcTXlOdW1iZXJJbnB1dERpYWxvZy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Shared/NameKanaField.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcTmFtZUthbmFGaWVsZC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Shared/NameKanaInline.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcTmFtZUthbmFJbmxpbmUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Shared/PhoneField.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcUGhvbmVGaWVsZC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Shared/PostalCodeField.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcUG9zdGFsQ29kZUZpZWxkLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Shared/TimeCardImportDialog.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcVGltZUNhcmRJbXBvcnREaWFsb2cucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/_Imports.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xfSW1wb3J0cy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Layout/MainLayout.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcTWFpbkxheW91dC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = b-ceqxmacn62
+
+[C:/PayCalcDXPro/src/PayCalcDXPro.Web/Components/Pages/YearEndEmployee.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xZZWFyRW5kRW1wbG95ZWUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = b-dttzfmf4ht

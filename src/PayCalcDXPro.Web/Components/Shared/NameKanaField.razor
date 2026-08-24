@@ -1,0 +1,70 @@
+@namespace PayCalcDXPro.Web.Components.Shared
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@* 名称＋フリガナの組。カナ項目を上段、名称項目を下段に配置。
+   名称をIMEで入力すると読み（ひらがな）を捕捉してカナへ自動反映する。
+   Enter遷移ではカナ項目はスキップ（.js-enter-skip）。 *@
+<div @ref="_container" class="@Class">
+    <MudTextField T="string" Value="Kana" ValueChanged="OnKanaChanged"
+                  Label="@KanaLabel" Variant="Variant.Outlined" Margin="Margin.Dense"
+                  Class="js-kana js-enter-skip" HelperText="@KanaHelp" />
+    <MudTextField T="string" Value="Name" ValueChanged="OnNameChanged"
+                  Label="@NameLabel" Variant="Variant.Outlined" Margin="Margin.Dense"
+                  Class="js-name mt-3" HelperText="@NameHelp"
+                  Required="@Required" RequiredError="@RequiredError" />
+</div>
+
+@code {
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public EventCallback<string> NameChanged { get; set; }
+    [Parameter] public string Kana { get; set; } = "";
+    [Parameter] public EventCallback<string> KanaChanged { get; set; }
+
+    [Parameter] public string NameLabel { get; set; } = "名称";
+    [Parameter] public string KanaLabel { get; set; } = "フリガナ";
+    [Parameter] public string? NameHelp { get; set; }
+    [Parameter] public string? KanaHelp { get; set; }
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public string? RequiredError { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    private ElementReference _container;
+    private DotNetObjectReference<NameKanaField>? _ref;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _ref = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("payInput.bindAutoKana", _container, _ref);
+        }
+    }
+
+    private async Task OnNameChanged(string v)
+    {
+        Name = v;
+        await NameChanged.InvokeAsync(v);
+    }
+
+    private async Task OnKanaChanged(string v)
+    {
+        Kana = v;
+        await KanaChanged.InvokeAsync(v);
+    }
+
+    // JSから読み（カタカナ）を受け取りカナ項目へ反映する。
+    [JSInvokable]
+    public async Task OnKana(string kana)
+    {
+        Kana = kana;
+        await KanaChanged.InvokeAsync(kana);
+        StateHasChanged();
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _ref?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

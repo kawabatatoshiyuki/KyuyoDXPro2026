@@ -1,0 +1,83 @@
+@page "/settings/timecard"
+@inject TimeCardImportService Tc
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>タイムカード転記設定｜給与計算DXPro</PageTitle>
+
+<style>
+    .tc-desc { background:var(--mud-palette-background-grey); border-radius:8px; padding:12px 16px;
+               font-size:0.85rem; line-height:1.6; color:var(--mud-palette-text-secondary); }
+    .tc-path { font-family:monospace; word-break:break-all; }
+</style>
+
+@* 固定ヘッダー：タイトルと保存ボタン。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.AccessTime" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">タイムカード転記設定</MudText>
+            </div>
+        </div>
+        <div class="proc-header__actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="設定保存" Disabled="_busy">設定を保存</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="3" Class="pa-2">
+    <MudItem xs="12" md="8">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="tc-desc mb-4">
+                タイムカード計算EXCELの<strong>転記ファイルが格納されているフォルダ</strong>を設定します。
+                給与計算で処理月を選択したとき、このフォルダから該当する転記ファイルが読み込まれます。
+                このPC（このサーバー）上のフォルダパスを指定してください。
+            </div>
+
+            <div class="proc-section-title">転記ファイルの格納パス</div>
+            <div class="d-flex align-center gap-3 mb-2">
+                <MudTextField @bind-Value="_dir" Variant="Variant.Outlined" Margin="Margin.Dense" Class="flex-grow-1"
+                              Placeholder="例）C:\PayCalcDXPro\timecard" Label="転記ファイルの格納フォルダ" />
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FolderOpen"
+                           OnClick="フォルダ参照" Disabled="_busy">参照</MudButton>
+            </div>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+                ワンポイントアドバイス：給与計算で月を選択したとき、該当するファイルが転記されます。
+            </MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string _dir = "";
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _dir = Tc.LoadTimeCardSetting().格納パス;
+    }
+
+    private async Task フォルダ参照()
+    {
+        var parameters = new DialogParameters { ["StartPath"] = _dir ?? "" };
+        var dialog = await Dialog.ShowAsync<Components.Shared.FolderBrowserDialog>("フォルダの選択", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data is string path && !string.IsNullOrEmpty(path))
+            _dir = path;
+    }
+
+    private void 設定保存()
+    {
+        _busy = true;
+        try
+        {
+            var r = Tc.SaveTimeCardSetting(_dir);
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+        }
+        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+}

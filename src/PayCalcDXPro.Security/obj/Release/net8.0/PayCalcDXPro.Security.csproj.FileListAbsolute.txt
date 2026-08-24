@@ -1,0 +1,12 @@
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\bin\Release\net8.0\PayCalcDXPro.Security.deps.json
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\bin\Release\net8.0\PayCalcDXPro.Security.dll
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\bin\Release\net8.0\PayCalcDXPro.Security.pdb
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\obj\Release\net8.0\PayCalcDXPro.Security.csproj.AssemblyReference.cache
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\obj\Release\net8.0\PayCalcDXPro.Security.GeneratedMSBuildEditorConfig.editorconfig
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\obj\Release\net8.0\PayCalcDXPro.Security.AssemblyInfoInputs.cache
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\obj\Release\net8.0\PayCalcDXPro.Security.AssemblyInfo.cs
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\obj\Release\net8.0\PayCalcDXPro.Security.csproj.CoreCompileInputs.cache
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\obj\Release\net8.0\PayCalcDXPro.Security.dll
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\obj\Release\net8.0\refint\PayCalcDXPro.Security.dll
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\obj\Release\net8.0\PayCalcDXPro.Security.pdb
+C:\PayCalcDXPro\src\PayCalcDXPro.Security\obj\Release\net8.0\ref\PayCalcDXPro.Security.dll

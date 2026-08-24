@@ -1,0 +1,152 @@
+/* この画面（年末調整計算）内の明細風の行の高さを全タブで統一する。
+   本人属性のラジオ/チェック行と、保険料等などの数値入力行の高さを揃える狙い。
+   app.css の .pay-row（min-height:38px）を、この画面に限り上書きする。 */
+.pay-row[b-dttzfmf4ht] {
+    min-height: 44px;
+}
+
+/* 本人情報タブ：チェック/ラジオ/コンボ/テキスト等のコントロールを、行見出し(.pay-row__label = .875rem)の
+   大きさに合わせて小さくする。MudBlazor の内部要素なので ::deep で貫通する。 */
+
+/* チェック/ラジオのアイコンを縮小し、ボタンの余白を詰める。 */
+.ye-personal[b-dttzfmf4ht]  .mud-checkbox .mud-icon-root,
+.ye-personal[b-dttzfmf4ht]  .mud-radio .mud-icon-root {
+    font-size: 1.1rem;
+}
+.ye-personal[b-dttzfmf4ht]  .mud-checkbox .mud-button-root,
+.ye-personal[b-dttzfmf4ht]  .mud-radio .mud-button-root {
+    padding: 4px;
+}
+
+/* チェック/ラジオのラベル文字を行見出しサイズに。 */
+.ye-personal[b-dttzfmf4ht]  .mud-radio .mud-typography,
+.ye-personal[b-dttzfmf4ht]  .mud-checkbox .mud-typography {
+    font-size: .875rem;
+}
+
+/* コンボボックス（MudSelect）・テキスト・数値などの入力文字を行見出しサイズに。 */
+.ye-personal[b-dttzfmf4ht]  .mud-input-root {
+    font-size: .875rem;
+}
+
+/* 金額セル共通：右寄せ・等幅数字。「100,000,000円」(1億)まで1行で収まる幅を確保する。 */
+.ye-amount[b-dttzfmf4ht],
+[b-dttzfmf4ht] td.ye-amount {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* 配偶者・扶養者タブの収入入力を右寄せに。 */
+.ye-personal[b-dttzfmf4ht]  .num-right input {
+    text-align: right;
+}
+
+/* 年末調整タブ：源泉徴収簿（年末調整欄）の表。区分は左寄せで広く、金額/税額は右寄せで固定幅。 */
+.gensen-table[b-dttzfmf4ht]  table {
+    table-layout: fixed;
+    width: 100%;
+}
+.gensen-table[b-dttzfmf4ht]  th,
+.gensen-table[b-dttzfmf4ht]  td {
+    padding: 4px 8px;
+    font-size: .85rem;
+    line-height: 1.3;
+}
+.gensen-table[b-dttzfmf4ht]  th:first-child,
+.gensen-table[b-dttzfmf4ht]  td:first-child {
+    width: auto;
+}
+.gensen-table[b-dttzfmf4ht]  th:not(:first-child),
+.gensen-table[b-dttzfmf4ht]  td:not(:first-child) {
+    width: 132px;          /* 100,000,000円 が1行で収まる幅 */
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* 支給情報タブ：給与/賞与の金額表。固定レイアウトで列幅を桁(最大1億+円)に合わせ、
+   ヘッダー文字でテーブルが横に広がってページ（＝固定ヘッダー）を押し広げないようにする。 */
+.ye-amount-table[b-dttzfmf4ht] {
+    width: 100%;
+}
+.ye-amount-table[b-dttzfmf4ht]  table {
+    table-layout: fixed;
+    width: 100%;
+}
+.ye-amount-table[b-dttzfmf4ht]  th,
+.ye-amount-table[b-dttzfmf4ht]  td {
+    padding: 3px 6px;
+    font-size: .8rem;
+    line-height: 1.25;
+}
+/* 先頭列（月/回）は狭く中央。 */
+.ye-amount-table[b-dttzfmf4ht]  th:first-child,
+.ye-amount-table[b-dttzfmf4ht]  td:first-child {
+    width: 36px;
+    text-align: center;
+}
+/* 金額列は固定幅（1億＋円）。ヘッダーは折り返し可。 */
+.ye-amount-table[b-dttzfmf4ht]  th:not(:first-child) {
+    width: 124px;
+    text-align: right;
+    white-space: normal;
+    line-height: 1.15;
+}
+/* データ列は1行で右寄せ・等幅数字。 */
+.ye-amount-table[b-dttzfmf4ht]  td:not(:first-child) {
+    width: 124px;
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 配偶者・扶養者情報タブ：1人＝1行（横並び、収まらなければ折り返し）。各項目はラベルを上に小さく表示。 */
+.family-list[b-dttzfmf4ht] {
+    display: flex;
+    flex-direction: column;
+}
+.family-row[b-dttzfmf4ht] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px 14px;
+    padding: 10px 2px;
+    border-bottom: 1px solid var(--mud-palette-divider);
+}
+.family-row:last-child[b-dttzfmf4ht] {
+    border-bottom: none;
+}
+.family-no[b-dttzfmf4ht] {
+    align-self: center;
+    width: 52px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.fcell[b-dttzfmf4ht] {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+/* 2項目を縦に積むセル（続柄＋生年月日／収入種類＋収入金額）。 */
+.fstack[b-dttzfmf4ht] {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.fcell > .flabel[b-dttzfmf4ht] {
+    font-size: .7rem;
+    line-height: 1.2;
+    color: var(--mud-palette-text-secondary);
+    white-space: nowrap;
+}
+
+/* 非課税通勤手当の行：金額と計算根拠を横一列に。計算根拠が収まらなくなったら自動で下の行へ回り込む
+   （計算根拠に最小幅を持たせ、残り幅が足りなければ折り返す）。 */
+.ye-hikazei[b-dttzfmf4ht] {
+    flex-wrap: wrap;
+}
+.ye-hikazei .ye-konkyo[b-dttzfmf4ht] {
+    flex: 1 1 260px;   /* 収まる時は横並び、残り幅 < 260px で次行へ回り込み、回り込み後は全幅。 */
+    min-width: 260px;
+}

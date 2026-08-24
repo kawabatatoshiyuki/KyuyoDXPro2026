@@ -1,0 +1,529 @@
+@page "/payroll/process"
+@using PayCalcDXPro.Data.Employee
+@using PayCalcDXPro.Data.Payroll
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject PayCalcDXPro.Web.TimeCardImportService Tc
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>給与計算｜給与計算DXPro</PageTitle>
+
+@* 入力セルの共通テンプレート（@<...> は markup 領域でのみ宣言できる）。 *@
+@{
+    // 集計カード用の大きめ読取。
+    RenderFragment Read(string label, int? value) =>
+        @<MudNumericField T="int?" Value="value" ReadOnly="true" Label="@label" Variant="Variant.Outlined"
+                          Format="#,##0" Adornment="Adornment.End" AdornmentText="円" Style="text-align:right;" />;
+
+    // 時間外勤務グリッドのセル用（法定内残業と同じく右詰め＋単位 h.mm）。
+    RenderFragment Ot(Func<double?> get, Action<double?> set) =>
+        @<div class="d-flex align-baseline justify-end" style="gap:4px;">
+            <MudNumericField T="double?" Value="get()" ValueChanged="@((double? v) => set(v))" Variant="Variant.Text"
+                             HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric" Class="ot-num" />
+            <span class="ot-unit">h.mm</span>
+         </div>;
+
+    // 勤怠の行（ラベル左／数値右・単位つき）。NumRow＝double。
+    RenderFragment NumRow(string label, Func<double?> get, Action<double?> set, string unit) =>
+        @<div class="pay-row">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <MudNumericField T="double?" Value="get()" ValueChanged="@((double? v) => set(v))" Variant="Variant.Text"
+                                 HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric" Class="pay-num" />
+                <span class="pay-yen">@unit</span>
+            </span>
+         </div>;
+
+    // 支給・控除の明細風の行（入力）。金額変更時は合計のみ即時再計算（現行 kyuyoCalc 相当）。
+    RenderFragment MoneyRow(string label, Func<int?> get, Action<int?> set) =>
+        @<div class="pay-row">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <MudNumericField T="int?" Value="get()" ValueChanged="@((int? v) => { set(v); OnAmountChanged(); })" Variant="Variant.Text"
+                                 Format="#,##0" HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric"
+                                 Class="pay-num" />
+                <span class="pay-yen">円</span>
+            </span>
+         </div>;
+
+    // 支給・控除の明細風の行（計算結果・読取）。
+    RenderFragment ReadRow(string label, int? value) =>
+        @<div class="pay-row pay-row--read">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <span class="pay-amount-text">@(value?.ToString("#,##0"))</span>
+                <span class="pay-yen">円</span>
+            </span>
+         </div>;
+
+    // 合計行（総支給額・総控除額。強調）。
+    RenderFragment TotalRow(string label, int? value) =>
+        @<div class="pay-row pay-row--total">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <span class="pay-amount-text">@(value?.ToString("#,##0"))</span>
+                <span class="pay-yen">円</span>
+            </span>
+         </div>;
+}
+
+@* 固定ヘッダー：支給回選択＋計算・保存。現行 F_給与処理 を踏襲（左＝従業員一覧／右＝入力）。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.Calculate" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">給与計算</MudText>
+            </div>
+            <div class="proc-header__controls">
+                <MudSelect T="int" Value="_支給回" ValueChanged="On支給回Changed" Label="処理月（計算対象労働月）"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:180px;">
+                    @foreach (var r in _meta.支給回候補)
+                    {
+                        int v = r.支給回;
+                        <MudSelectItem T="int" Value="v">@r.ラベル</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="int" Value="_selNumber" ValueChanged="OnEmployeeChanged" Label="従業員"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:240px;"
+                           Disabled="@(_meta.従業員.Count == 0)" ToStringFunc="EmployeeLabel">
+                    @foreach (var it in _meta.従業員)
+                    {
+                        <MudSelectItem T="int" Value="it.Number">
+                            @it.氏名（No.@it.No）@(it.退職 ? "［退職］" : "")@(_saved.Contains(it.Number) ? " ✅" : "")
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+                @if (!string.IsNullOrEmpty(_meta.対象月))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Style="white-space:nowrap;">
+                        （@(_meta.対象年)年）@(_meta.対象月)月分給与
+                        @(string.IsNullOrEmpty(_meta.支給日) ? "" : $"　{_meta.支給日} 支給")
+                        @(_meta.所定勤務日数 is int d ? $"　所定 {d}日" : "")
+                    </MudText>
+                }
+            </div>
+        </div>
+        <div class="proc-header__actions">
+            <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary">
+                <MudButton StartIcon="@Icons.Material.Filled.ContentCopy"
+                           OnClick="@(() => CopyPrevMonth(false))" Disabled="@(_entry is null || _busy || _支給回 <= 1)">
+                    前月コピー（未入力のみ）
+                </MudButton>
+                <MudButton OnClick="@(() => CopyPrevMonth(true))" Disabled="@(_entry is null || _busy || _支給回 <= 1)">
+                    上書き
+                </MudButton>
+            </MudButtonGroup>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.UploadFile"
+                       OnClick="タイムカード取込" Disabled="@(_meta.従業員.Count == 0 || _busy)">タイムカード取込</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Calculate"
+                       OnClick="Calc" Disabled="@(_entry is null || _busy)">計算</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="Save" Disabled="@(_entry is null || _busy)">保存</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="3">
+    <!-- 入力フォーム（全幅。従業員はヘッダーのドロップダウンで選択） -->
+    <MudItem xs="12">
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-2" />
+        }
+        else if (_meta.従業員.Count == 0)
+        {
+            <MudPaper Elevation="1" Class="pa-4">
+                <MudText Class="pa-3" Color="Color.Secondary">従業員が登録されていません。</MudText>
+            </MudPaper>
+        }
+        else if (_entry is null)
+        {
+            <MudPaper Elevation="1" Class="pa-4">
+                <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Class="py-12">
+                    <MudIcon Icon="@Icons.Material.Filled.Payments" Size="Size.Large" Color="Color.Secondary" />
+                    <MudText Color="Color.Secondary">上部のドロップダウンから従業員を選んでください。</MudText>
+                </MudStack>
+            </MudPaper>
+        }
+        else
+        {
+            <!-- 勤怠・時間外（支給/控除と同様に横並び：PC2列・モバイル1列） -->
+            <MudGrid Spacing="3">
+                <!-- 勤怠 -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
+                        <div class="proc-section-title">勤　怠</div>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">時間は「160h30m→160.3／160h05m→160.05」で入力</MudText>
+                        <div class="pay-list">
+                            <div class="pay-row">
+                                <span class="pay-row__label">出勤日数</span>
+                                <span class="pay-row__amount">
+                                    <MudNumericField T="double?" Value="_entry!.出勤日数" ValueChanged="@((double? v) => _entry!.出勤日数 = v)"
+                                                     Variant="Variant.Text" HideSpinButtons="true" Margin="Margin.Dense"
+                                                     InputMode="InputMode.numeric" Class="pay-num" />
+                                    <span class="pay-yen">日</span>
+                                    <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Calculate"
+                                               OnClick="CalcDaily" Class="ml-2" Style="white-space:nowrap;">日給計算</MudButton>
+                                </span>
+                            </div>
+                            @NumRow("所定出勤日数", () => _entry!.所定出勤日数, v => _entry!.所定出勤日数 = v, "日")
+                            @NumRow("労働時間", () => _entry!.労働時間, v => _entry!.労働時間 = v, "h")
+                            @NumRow("欠勤日数（一般）", () => _entry!.欠勤日数_一般, v => _entry!.欠勤日数_一般 = v, "日")
+                            @NumRow("欠勤日数（病気等）", () => _entry!.欠勤日数_病気等, v => _entry!.欠勤日数_病気等 = v, "日")
+                            @NumRow("特別休暇", () => _entry!.特別休暇, v => _entry!.特別休暇 = v, "日")
+                            @NumRow("代休", () => _entry!.代休, v => _entry!.代休 = v, "日")
+                            @NumRow("有給休暇", () => _entry!.有給休暇, v => _entry!.有給休暇 = v, "日")
+                            @NumRow("有給残日数", () => _entry!.有給残日数, v => _entry!.有給残日数 = v, "日")
+                            @NumRow("遅刻早退", () => _entry!.遅刻早退, v => _entry!.遅刻早退 = v, "")
+                        </div>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- 時間外勤務 -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
+                        <div class="proc-section-title">時間外勤務</div>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">時間は「7h30m→7.3／7h05m→7.05」で入力</MudText>
+                        <div class="pay-list" style="max-width:420px;">
+                            @NumRow("法定内残業（割増なし）", () => _entry!.法定内残業, v => _entry!.法定内残業 = v, "h.mm")
+                        </div>
+                        <MudText Typo="Typo.body2" Class="mt-2 mb-1" Style="padding-left:10px;">法定外残業（割増賃金）</MudText>
+                        <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="max-width:540px;">
+                            <thead>
+                                <tr>
+                                    <th style="white-space:nowrap;">区分</th>
+                                    <th style="text-align:right;">60h以下</th>
+                                    <th style="text-align:right;">60h超</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="white-space:nowrap;text-align:center;">普通<br />残業</td>
+                                    <td>@Ot(() => _entry!.普通残業60h以下, v => _entry!.普通残業60h以下 = v)</td>
+                                    <td>@Ot(() => _entry!.普通残業60h超, v => _entry!.普通残業60h超 = v)</td>
+                                </tr>
+                                <tr>
+                                    <td style="white-space:nowrap;text-align:center;">深夜<br />残業</td>
+                                    <td>@Ot(() => _entry!.深夜残業60h以下, v => _entry!.深夜残業60h以下 = v)</td>
+                                    <td>@Ot(() => _entry!.深夜残業60h超, v => _entry!.深夜残業60h超 = v)</td>
+                                </tr>
+                                <tr>
+                                    <td style="white-space:nowrap;text-align:center;">休日<br />出勤</td>
+                                    <td>@Ot(() => _entry!.休日出勤60h以下, v => _entry!.休日出勤60h以下 = v)</td>
+                                    <td>@Ot(() => _entry!.休日出勤60h超, v => _entry!.休日出勤60h超 = v)</td>
+                                </tr>
+                                <tr>
+                                    <td style="white-space:nowrap;text-align:center;">休日<br />深夜</td>
+                                    <td>@Ot(() => _entry!.休日深夜60h以下, v => _entry!.休日深夜60h以下 = v)</td>
+                                    <td>@Ot(() => _entry!.休日深夜60h超, v => _entry!.休日深夜60h超 = v)</td>
+                                </tr>
+                            </tbody>
+                        </MudSimpleTable>
+                        <div class="mt-2">
+                            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="CalcOvertime">時間外手当計算</MudButton>
+                        </div>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <!-- 支給・控除（項目はマスタ（支給控除項目設定）に同期。それぞれ列形式） -->
+            <MudGrid Spacing="3">
+                <!-- 支給 列 -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
+                        <div class="proc-section-title">支　給</div>
+                        <div class="pay-list">
+                            @MoneyRow(L("基本給", "基本給"), () => _entry!.基本給, v => _entry!.基本給 = v)
+                            @for (int i = 0; i < 12; i++)
+                            {
+                                int idx = i;
+                                if (idx < _meta.手当ラベル.Count && !string.IsNullOrWhiteSpace(_meta.手当ラベル[idx].名称))
+                                {
+                                    string lbl = _meta.手当ラベル[idx].名称 + (_meta.手当ラベル[idx].非課税 ? "（非）" : "");
+                                    @MoneyRow(lbl, () => _entry!.給与支給手当[idx], v => _entry!.給与支給手当[idx] = v)
+                                }
+                            }
+                            @MoneyRow(L("時間外手当", "時間外手当"), () => _entry!.時間外手当, v => _entry!.時間外手当 = v)
+                            @MoneyRow(L("勤怠控除", "勤怠控除"), () => _entry!.勤怠控除, v => _entry!.勤怠控除 = v)
+                            @MoneyRow(L("課税通勤費", "課税通勤費"), () => _entry!.課税通勤費, v => _entry!.課税通勤費 = v)
+                            @MoneyRow(L("非課税通勤費", "非課税通勤費"), () => _entry!.非課税通勤費, v => _entry!.非課税通勤費 = v)
+                            @TotalRow(L("給与総支給額", "総支給額"), _entry.総支給額)
+                        </div>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- 控除 列 -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
+                        <div class="proc-section-title">控　除</div>
+                        <div class="pay-list">
+                            @MoneyRow(L("給与健康保険", "健康保険"), () => _entry!.健康保険, v => _entry!.健康保険 = v)
+                            @MoneyRow(L("給与介護保険", "介護保険"), () => _entry!.介護保険, v => _entry!.介護保険 = v)
+                            @MoneyRow(L("給与子育支援", "子育支援"), () => _entry!.子育支援, v => _entry!.子育支援 = v)
+                            @MoneyRow(L("給与厚生年金", "厚生年金"), () => _entry!.厚生年金, v => _entry!.厚生年金 = v)
+                            @MoneyRow(L("給与年金基金", "年金基金"), () => _entry!.年金基金, v => _entry!.年金基金 = v)
+                            @MoneyRow(L("給与小規模共済", "小規模共済"), () => _entry!.小規模共済, v => _entry!.小規模共済 = v)
+                            @MoneyRow(L("給与雇用保険", "雇用保険"), () => _entry!.雇用保険, v => _entry!.雇用保険 = v)
+                            @ReadRow(L("給与社会保険合計", "社会保険合計"), _entry.社会保険合計)
+                            @ReadRow(L("給与課税対象額", "課税対象額"), _entry.課税対象額)
+                            @MoneyRow(L("給与所得税", "所得税"), () => _entry!.所得税, v => _entry!.所得税 = v)
+                            @MoneyRow(L("給与住民税", "住民税"), () => _entry!.住民税, v => _entry!.住民税 = v)
+                            @for (int i = 0; i < 9; i++)
+                            {
+                                int idx = i;
+                                if (idx < _meta.控除ラベル.Count && !string.IsNullOrWhiteSpace(_meta.控除ラベル[idx]))
+                                {
+                                    @MoneyRow(_meta.控除ラベル[idx], () => _entry!.控除項目[idx], v => _entry!.控除項目[idx] = v)
+                                }
+                            }
+                            @MoneyRow("年末調整還付金", () => _entry!.還付金額, v => _entry!.還付金額 = v)
+                            @MoneyRow("年末調整徴収金", () => _entry!.徴収金額, v => _entry!.徴収金額 = v)
+                            @TotalRow(L("総控除額", "総控除額"), _entry.総控除額)
+                        </div>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <!-- 集計 -->
+            <MudPaper Elevation="2" Class="pa-3 mb-3">
+                <MudGrid Spacing="2">
+                    <MudItem xs="4">@Read("総支給額", _entry.総支給額)</MudItem>
+                    <MudItem xs="4">@Read("総控除額", _entry.総控除額)</MudItem>
+                    <MudItem xs="4">
+                        <MudNumericField T="int?" Value="_entry.差引支給額" ReadOnly="true" Label="差引支給額"
+                                         Variant="Variant.Outlined" Format="#,##0" Adornment="Adornment.End" AdornmentText="円"
+                                         Style="text-align:right;" Class="font-weight-bold" />
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- 備考 -->
+            <MudPaper Elevation="1" Class="pa-3 mb-3">
+                <MudTextField @bind-Value="_entry.備考" Label="給料明細備考欄（※全角45文字程度まで）"
+                              Variant="Variant.Outlined" Lines="2" MaxLength="90" />
+            </MudPaper>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private int _支給回 = 1;
+    private PayrollMeta _meta = new(Array.Empty<EmployeeListItem>(), Array.Empty<PayLabel>(), Array.Empty<string>(), "", "", "", null, Array.Empty<PayRoundOption>(), new Dictionary<string, string>(), Array.Empty<int>());
+
+    /// <summary>当該支給回で計算・保存済みの従業員Number（一覧の「計算済」マーク用）。</summary>
+    private HashSet<int> _saved = new();
+
+    /// <summary>固定項目のラベルをマスタ（支給控除項目設定）から引く。未設定なら既定名。</summary>
+    private string L(string key, string def)
+        => _meta.固定ラベル.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : def;
+
+    /// <summary>従業員セレクトの選択中表示（閉じた状態）。計算済マークは付けず氏名のみ＝月切替でマークが残らない。</summary>
+    private string EmployeeLabel(int number)
+    {
+        var it = _meta.従業員.FirstOrDefault(x => x.Number == number);
+        return it is null ? "" : $"{it.氏名}（No.{it.No}）{(it.退職 ? "［退職］" : "")}";
+    }
+    private EmployeeListItem? _sel;
+    private int _selNumber;
+    private PayrollEntry? _entry;
+    private bool _loading = true;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 支給日情報を見て、本日が支給日を過ぎていれば翌月分（未到来の最初の回）を初期表示する。
+        _支給回 = await Task.Run(() => Db.DefaultPayRound());
+        await ReloadMeta();
+        await EnsureSelectionAsync();
+    }
+
+    private async Task ReloadMeta()
+    {
+        _loading = true;
+        try
+        {
+            _meta = await Task.Run(() => Db.LoadPayrollMeta(_支給回));
+            _saved = _meta.保存済従業員.ToHashSet();
+        }
+        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task On支給回Changed(int k)
+    {
+        _支給回 = k;
+        await ReloadMeta();
+        await EnsureSelectionAsync();
+    }
+
+    private async Task OnEmployeeChanged(int number)
+    {
+        var item = _meta.従業員.FirstOrDefault(x => x.Number == number);
+        if (item is not null) await SelectAsync(item);
+    }
+
+    /// <summary>未選択（または対象外）なら先頭の従業員を選ぶ。選択済みなら支給回分を読み直す。</summary>
+    private async Task EnsureSelectionAsync()
+    {
+        if (_meta.従業員.Count == 0) { _sel = null; _selNumber = 0; _entry = null; return; }
+        var item = _meta.従業員.FirstOrDefault(x => x.Number == _selNumber) ?? _meta.従業員[0];
+        await SelectAsync(item);
+    }
+
+    private async Task SelectAsync(EmployeeListItem item)
+    {
+        try
+        {
+            _sel = item;
+            _selNumber = item.Number;
+            _entry = await Task.Run(() => Db.LoadPayrollEntry(item.Number.ToString(), _支給回));
+        }
+        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+    }
+
+    /// <summary>タイムカードCSVを取り込む。転記設定フォルダから当月分（新→旧）を自動検出→プレビュー→反映。</summary>
+    private async Task タイムカード取込()
+    {
+        _busy = true;
+        try
+        {
+            var path = await Task.Run(() => Tc.FindTimeCardCsv(_支給回));
+            if (path is null)
+            {
+                Snackbar.Add("当月分のタイムカードCSVが見つかりません。「タイムカード転記設定」の格納フォルダとファイル名をご確認ください。", Severity.Warning);
+                return;
+            }
+
+            var plan = await Task.Run(() => Tc.AnalyzeTimeCardCsv(path, _支給回));
+            if (!plan.Ok)
+            {
+                Snackbar.Add(plan.Message, Severity.Error);
+                return;
+            }
+
+            var parameters = new DialogParameters { ["Plan"] = plan };
+            var dialog = await Dialog.ShowAsync<Components.Shared.TimeCardImportDialog>("タイムカードデータの取込", parameters,
+                new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true });
+            var result = await dialog.Result;
+            if (result is null || result.Canceled || result.Data is not TimeCardImportResult res) return;
+
+            // 完全成功＝Success／一部反映(失敗あり)＝Warning／1件も反映できず＝Error。
+            var severity = res.Ok ? Severity.Success : (res.反映件数 > 0 ? Severity.Warning : Severity.Error);
+            Snackbar.Add(res.Message, severity);
+            if (res.反映件数 > 0)
+            {
+                // 反映後は保存済マーク・選択中の従業員を最新化する（部分反映でも反映分を反映）。
+                await ReloadMeta();
+                await EnsureSelectionAsync();
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"取込に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    /// <summary>支給・控除の金額変更時に合計のみ即時再計算する（現行 kyuyoCalc 相当。保険料・所得税の自動算出はしない）。</summary>
+    private void OnAmountChanged()
+    {
+        if (_entry is null) return;
+        var 非課税 = new bool[12];
+        for (int i = 0; i < 12 && i < _meta.手当ラベル.Count; i++) 非課税[i] = _meta.手当ラベル[i].非課税;
+        PayrollProcessor.RecomputeTotals(_entry, 非課税);
+    }
+
+    /// <summary>前月（支給回-1）の給与明細をコピーする（現行 F_前月明細コピー）。overwrite=true で強制上書き／false で未入力のみ。</summary>
+    private async Task CopyPrevMonth(bool overwrite)
+    {
+        if (_entry is null || _sel is null) return;
+        if (_支給回 <= 1) { Snackbar.Add("第1回には前月がありません。", Severity.Warning); return; }
+
+        _busy = true;
+        try
+        {
+            var prev = await Task.Run(() => Db.LoadPreviousPayroll(_sel!.Number.ToString(), _支給回));
+            if (prev is null)
+            {
+                Snackbar.Add("前月の給与データがありません。", Severity.Warning);
+                return;
+            }
+            ApplyPrevMonthCopy(prev, overwrite);
+            OnAmountChanged(); // 現行どおりコピー後に合計を再計算（kyuyoCalc 相当）。
+            Snackbar.Add(overwrite ? "前月の給与明細を上書きコピーしました。" : "前月の未入力項目をコピーしました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"前月コピーに失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    /// <summary>
+    /// 前月トランから現行と同じ対象項目をコピーする。
+    /// 強制上書き＝常にDB値／未入力のみ＝画面が空・0のときだけDB値（現行 getZengetsuKyuyohantei）。
+    /// 時間外手当・勤怠控除・所得税・住民税・控除9・還付/徴収・備考はコピーしない（現行どおり）。有給残日数は常に上書き。
+    /// </summary>
+    private void ApplyPrevMonthCopy(PayrollEntry p, bool overwrite)
+    {
+        int? Pick(int? screen, int? db) => overwrite ? db : ((screen ?? 0) == 0 ? db : screen);
+
+        _entry!.基本給 = Pick(_entry.基本給, p.基本給);
+        for (int i = 0; i < 12; i++) _entry.給与支給手当[i] = Pick(_entry.給与支給手当[i], p.給与支給手当[i]);
+        _entry.課税通勤費 = Pick(_entry.課税通勤費, p.課税通勤費);
+        _entry.非課税通勤費 = Pick(_entry.非課税通勤費, p.非課税通勤費);
+        _entry.健康保険 = Pick(_entry.健康保険, p.健康保険);
+        _entry.介護保険 = Pick(_entry.介護保険, p.介護保険);
+        _entry.子育支援 = Pick(_entry.子育支援, p.子育支援);
+        _entry.厚生年金 = Pick(_entry.厚生年金, p.厚生年金);
+        _entry.年金基金 = Pick(_entry.年金基金, p.年金基金);
+        _entry.小規模共済 = Pick(_entry.小規模共済, p.小規模共済);
+        _entry.雇用保険 = Pick(_entry.雇用保険, p.雇用保険);
+        for (int i = 0; i < 8; i++) _entry.控除項目[i] = Pick(_entry.控除項目[i], p.控除項目[i]);
+        _entry.有給残日数 = p.有給残日数; // 現行どおり常に上書き。
+    }
+
+    private async Task Calc()
+    {
+        if (_entry is null || _sel is null) return;
+        _busy = true;
+        try
+        {
+            _entry = await Task.Run(() => Db.CalculatePayroll(_entry!, _sel!.Number));
+            Snackbar.Add("計算しました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"計算に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task CalcOvertime()
+    {
+        if (_entry is null || _sel is null) return;
+        try
+        {
+            // 区分別（端数処理済み）に算出し、その合算を時間外手当とする（内訳の合計＝時間外手当に一致）。
+            var parts = await Task.Run(() => Db.ComputeOvertimeParts(_entry!, _sel!.Number));
+            _entry.時間外手当 = parts.Sum(p => p.金額);
+            // 内訳（略称＋金額・非ゼロのみ）を備考へ書き込む（常に上書き・先頭に【時間外内訳】）。
+            var 明細 = parts.Where(p => p.金額 != 0).Select(p => $"{p.略称}{p.金額:N0}").ToList();
+            _entry.備考 = 明細.Count > 0 ? "【時間外内訳】" + string.Join(" ", 明細) : "";
+        }
+        catch (Exception ex) { Snackbar.Add($"時間外手当の計算に失敗しました：{ex.Message}", Severity.Error); }
+    }
+
+    private async Task CalcDaily()
+    {
+        if (_entry is null || _sel is null) return;
+        try { _entry.基本給 = await Task.Run(() => Db.ComputeDailyBasePay(_entry!.出勤日数 ?? 0, _sel!.Number)); }
+        catch (Exception ex) { Snackbar.Add($"基本給の計算に失敗しました：{ex.Message}", Severity.Error); }
+    }
+
+    private async Task Save()
+    {
+        if (_entry is null) return;
+        _busy = true;
+        try
+        {
+            await Task.Run(() => Db.SavePayrollEntry(_entry!));
+            if (_sel is not null) _saved.Add(_sel.Number); // 一覧の「計算済」マークを更新。
+            Snackbar.Add("保存しました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+}

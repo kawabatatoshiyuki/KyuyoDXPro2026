@@ -1,0 +1,105 @@
+@inject LocalDatabaseService Db
+
+@* サーバー（このPC）のフォルダを辿って選択するダイアログ。現行 FolderBrowserDialog 相当。
+   Blazor Server はサーバー側で動作するため、ブラウザではなくサーバーのファイルシステムを参照する。 *@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6"><MudIcon Icon="@Icons.Material.Filled.FolderOpen" Class="mr-2" />フォルダの選択</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="min-width:520px;">
+            @* 現在のパス＋上へ *@
+            <div class="d-flex align-center gap-2 mb-2">
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ArrowUpward"
+                           OnClick="上へ" Disabled="_listing.ParentPath is null && string.IsNullOrEmpty(_listing.CurrentPath)">上へ</MudButton>
+                <MudTextField T="string" Value="@(string.IsNullOrEmpty(_listing.CurrentPath) ? "（ドライブを選択）" : _listing.CurrentPath)"
+                              ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="flex-grow-1" />
+            </div>
+
+            @* ドライブ *@
+            <div class="d-flex align-center flex-wrap gap-2 mb-2">
+                @foreach (var d in _listing.Drives)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Storage"
+                               OnClick="@(() => Navigate(d))">@d</MudButton>
+                }
+            </div>
+
+            @* フォルダ一覧 *@
+            <MudPaper Outlined="true" Style="height:320px;overflow:auto;" Class="pa-1">
+                @if (string.IsNullOrEmpty(_listing.CurrentPath))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-3">上のドライブを選んでください。</MudText>
+                }
+                else if (_listing.Directories.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-3">サブフォルダはありません。</MudText>
+                }
+                else
+                {
+                    @foreach (var d in _listing.Directories)
+                    {
+                        <MudButton FullWidth="true" Variant="Variant.Text" Class="justify-start"
+                                   StartIcon="@Icons.Material.Filled.Folder" OnClick="@(() => Navigate(d.FullPath))">
+                            @d.Name
+                        </MudButton>
+                    }
+                }
+            </MudPaper>
+
+            @* 新しいフォルダ *@
+            @if (!string.IsNullOrEmpty(_listing.CurrentPath))
+            {
+                <div class="d-flex align-center gap-2 mt-3">
+                    <MudTextField @bind-Value="_newName" Label="新しいフォルダ名" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" Class="flex-grow-1" />
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.CreateNewFolder"
+                               OnClick="新規フォルダ" Disabled="string.IsNullOrWhiteSpace(_newName)">作成</MudButton>
+                </div>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">キャンセル</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Ok"
+                   Disabled="string.IsNullOrEmpty(_listing.CurrentPath)">このフォルダを選択</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Inject] private ISnackbar Snackbar { get; set; } = default!;
+
+    /// <summary>初期表示するフォルダ（現在のバックアップ先）。</summary>
+    [Parameter] public string StartPath { get; set; } = "";
+
+    private DirListing _listing = new("", null, Array.Empty<DirEntry>(), Array.Empty<string>());
+    private string _newName = "";
+
+    protected override void OnInitialized() => _listing = Db.ListDirectories(StartPath);
+
+    private void Navigate(string path) => _listing = Db.ListDirectories(path);
+
+    private void 上へ()
+    {
+        if (_listing.ParentPath is not null) _listing = Db.ListDirectories(_listing.ParentPath);
+        else if (!string.IsNullOrEmpty(_listing.CurrentPath)) _listing = Db.ListDirectories(null); // ドライブ一覧へ
+    }
+
+    private void 新規フォルダ()
+    {
+        var r = Db.CreateFolder(_listing.CurrentPath, _newName);
+        if (r.Ok && r.Path is not null)
+        {
+            _newName = "";
+            _listing = Db.ListDirectories(r.Path); // 作成したフォルダへ移動
+        }
+        else
+        {
+            Snackbar.Add(r.Message, Severity.Error);
+        }
+    }
+
+    private void Ok() => MudDialog.Close(DialogResult.Ok(_listing.CurrentPath));
+    private void Cancel() => MudDialog.Cancel();
+}

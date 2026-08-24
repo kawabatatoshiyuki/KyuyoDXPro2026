@@ -1,0 +1,144 @@
+@page "/setup/ledger-print"
+@using PayCalcDXPro.Data.Employee
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>台帳印刷｜給与計算DXPro</PageTitle>
+
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+        <MudIcon Icon="@Icons.Material.Filled.Print" Size="Size.Large" Color="Color.Primary" />
+        <MudText Typo="Typo.h5">台帳印刷</MudText>
+    </MudStack>
+</MudPaper>
+
+<MudGrid Spacing="3">
+    <!-- 左：導入設定台帳 ＋ 従業員台帳 -->
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">導入設定台帳</div>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                会社情報・部門/役職/銀行・報告書提出先・支給日・支給控除項目を一覧で印刷します。
+            </MudText>
+            <div class="d-flex flex-wrap mt-3" style="gap:8px;">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Preview"
+                           OnClick="PreviewSetup">プレビュー</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                           Href="/setup/ledger/pdf?kind=setup" Target="_blank">PDF出力（別タブ）</MudButton>
+            </div>
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mt-3">
+            <div class="proc-section-title">従業員台帳</div>
+            @if (_employees.Count == 0)
+            {
+                <MudText Color="Color.Secondary" Class="mt-2">従業員が登録されていません。</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/setup/employees"
+                           StartIcon="@Icons.Material.Filled.PersonAdd" Class="mt-3">従業員登録へ</MudButton>
+            }
+            else
+            {
+                var filtered = _employees.Where(MatchSearch).ToList();
+                <div class="d-flex flex-wrap mt-1" style="gap:8px;">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Preview"
+                               OnClick="PreviewEmployee">プレビュー</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                               Href="@EmployeePdfUrl" Target="_blank">PDF出力（別タブ）</MudButton>
+                </div>
+                <div class="d-flex align-center justify-space-between flex-wrap mt-2" style="gap:8px;">
+                    <MudCheckBox T="bool" Value="@(_employees.Count > 0 && _selected.Count == _employees.Count)"
+                                 ValueChanged="ToggleAll" Color="Color.Primary" Label="全ての従業員を選択する" Dense="true" />
+                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">
+                        @_selected.Count 人選択中 / 全 @_employees.Count 人
+                    </MudChip>
+                </div>
+                <MudTextField @bind-Value="_search" Immediate="true" DebounceInterval="150"
+                              Placeholder="氏名・フリガナ・No で絞り込み" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                              Clearable="true" Class="my-2" />
+                <MudDivider Class="my-2" />
+                <div style="max-height:calc(100vh - 380px);overflow:auto;">
+                    @if (filtered.Count == 0)
+                    {
+                        <MudText Color="Color.Secondary" Class="pa-2">該当する従業員がいません。</MudText>
+                    }
+                    else
+                    {
+                        @foreach (var it in filtered)
+                        {
+                            int num = it.Number;
+                            <MudCheckBox T="bool" Value="_selected.Contains(num)"
+                                         ValueChanged="@((bool v) => ToggleOne(num, v))" Dense="true" Color="Color.Primary"
+                                         Label="@($"{it.氏名}（No.{it.No}）")" />
+                        }
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <!-- 右：プレビュー -->
+    <MudItem xs="12" md="8">
+        @if (string.IsNullOrEmpty(_previewUrl))
+        {
+            <MudPaper Elevation="1" Class="pa-6">
+                <MudText Class="pa-3" Color="Color.Secondary">「プレビュー」を押すと、台帳を右側に表示します。</MudText>
+            </MudPaper>
+        }
+        else
+        {
+            <iframe src="@_previewUrl" style="width:100%;height:84vh;border:1px solid var(--mud-palette-divider);border-radius:6px;"></iframe>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private IReadOnlyList<EmployeeListItem> _employees = Array.Empty<EmployeeListItem>();
+    private HashSet<int> _selected = new();
+    private string _search = "";
+    private string _previewUrl = "";
+
+    private string EmployeePdfUrl
+    {
+        get
+        {
+            bool all = _employees.Count > 0 && _selected.Count == _employees.Count;
+            string nums = (_selected.Count == 0 || all) ? "" : string.Join(",", _selected);
+            return $"/setup/ledger/pdf?kind=employee&nums={nums}";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _employees = await Task.Run(() => Db.ListEmployees());
+            _selected = _employees.Select(x => x.Number).ToHashSet();   // 既定は全員選択
+        }
+        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+    }
+
+    private bool MatchSearch(EmployeeListItem it)
+    {
+        if (string.IsNullOrWhiteSpace(_search)) return true;
+        var s = _search.Trim();
+        return (it.氏名?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (it.フリガナ?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (it.No?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private void ToggleAll(bool v) => _selected = v ? _employees.Select(x => x.Number).ToHashSet() : new();
+
+    private void ToggleOne(int number, bool v)
+    {
+        if (v) _selected.Add(number); else _selected.Remove(number);
+    }
+
+    private void PreviewSetup() => _previewUrl = "/setup/ledger/pdf?kind=setup";
+
+    private void PreviewEmployee()
+    {
+        if (_selected.Count == 0) { Snackbar.Add("従業員を選択してください。", Severity.Info); return; }
+        _previewUrl = EmployeePdfUrl;
+    }
+}

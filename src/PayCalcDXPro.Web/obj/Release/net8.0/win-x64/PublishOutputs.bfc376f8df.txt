@@ -1,0 +1,10 @@
+C:\package\app\appsettings.Development.json
+C:\package\app\appsettings.json
+C:\package\app\appsettings.Production.json
+C:\package\app\PayCalcDXPro.Web.pdb
+C:\package\app\LatoFont\OFL.txt
+C:\package\app\PayCalcDXPro.Domain.pdb
+C:\package\app\PayCalcDXPro.Data.pdb
+C:\package\app\PayCalcDXPro.Reporting.pdb
+C:\package\app\PayCalcDXPro.Security.pdb
+C:\package\app\PayCalcDXPro.Web.exe

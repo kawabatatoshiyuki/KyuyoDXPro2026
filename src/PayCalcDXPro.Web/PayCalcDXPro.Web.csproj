@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\PayCalcDXPro.Domain\PayCalcDXPro.Domain.csproj" />
+    <ProjectReference Include="..\PayCalcDXPro.Data\PayCalcDXPro.Data.csproj" />
+    <ProjectReference Include="..\PayCalcDXPro.Reporting\PayCalcDXPro.Reporting.csproj" />
+    <ProjectReference Include="..\PayCalcDXPro.Security\PayCalcDXPro.Security.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MudBlazor" Version="9.5.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- リリース時はここのバージョンを更新する（サイドメニューに「Ver.○○」で表示）。 -->
+    <Version>26.4.0.0</Version>
+  </PropertyGroup>
+
+</Project>

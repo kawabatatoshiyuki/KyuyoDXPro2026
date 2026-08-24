@@ -1,0 +1,392 @@
+@page "/settings/tax-table"
+@using PayCalcDXPro.Data.TaxTable
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject PayCalcDXPro.Web.TabStateService TabState
+
+<PageTitle>所得税（月額表）｜給与計算DXPro</PageTitle>
+
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Functions" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">所得税（月額表）</MudText>
+        </MudStack>
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Undo"
+                       OnClick="ReloadAsync" Disabled="@(_loading || _saving)">元に戻す</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveAsync" Disabled="@(_loading || _saving)">登録する</MudButton>
+        </MudStack>
+    </MudStack>
+</MudPaper>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+}
+else
+{
+    @* 数値セルの共通テンプレート（@code内では@<...>を使えないためmarkupで宣言）。 *@
+    RenderFragment<(int? V, Action<int?> Set)> Money = x =>@<MudNumericField T="int?" Value="x.V" ValueChanged="x.Set"
+        Variant="Variant.Text" Margin="Margin.Dense" Format="#,##0" HideSpinButtons="true" Style="width:108px;" />;
+    RenderFragment<(double? V, Action<double?> Set)> Rate = x =>@<MudNumericField T="double?" Value="x.V" ValueChanged="x.Set"
+        Variant="Variant.Text" Margin="Margin.Dense" Format="0.###" HideSpinButtons="true" Style="width:84px;" />;
+    @* 列数の多い賞与甲欄用の狭いセル。 *@
+    RenderFragment<(int? V, Action<int?> Set)> MoneyN = x =>@<MudNumericField T="int?" Value="x.V" ValueChanged="x.Set"
+        Variant="Variant.Text" Margin="Margin.Dense" Format="#,##0" HideSpinButtons="true" Style="width:82px;" />;
+    RenderFragment<(double? V, Action<double?> Set)> RateN = x =>@<MudNumericField T="double?" Value="x.V" ValueChanged="x.Set"
+        Variant="Variant.Text" Margin="Margin.Dense" Format="0.###" HideSpinButtons="true" Style="width:64px;" />;
+
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mt-2 mb-3">
+        源泉所得税の計算に用いる月額表（電算機計算の特例）と、賞与の源泉徴収税額表です。
+        税制改正で値が変わった場合のみ修正してください。各セルは手入力できます。
+    </MudAlert>
+
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" KeepPanelsAlive="true" Class="spaced-tabs" @bind-ActivePanelIndex="ActiveTab">
+        <MudTabPanel Text="月額表（別表第1〜4）" Icon="@Icons.Material.Filled.TableChart">
+
+            <MudPaper Elevation="1" Class="pa-4 mb-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>別表第1</b></MudText>
+                <div style="overflow-x:auto;">
+                    <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="min-width:560px;">
+                        <thead>
+                            <tr>
+                                <th colspan="2" style="text-align:center;">社会保険料控除後の給与額(A)</th>
+                                <th colspan="4" rowspan="2" style="text-align:center; vertical-align:middle;">給与所得控除の額</th>
+                            </tr>
+                            <tr>
+                                <th style="text-align:center;">以上</th>
+                                <th style="text-align:center;">以下</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < _b.別表1.Count; i++)
+                            {
+                                var row = _b.別表1[i];
+                                var mid = i != 0 && i != _b.別表1.Count - 1;
+                                <tr>
+                                    <td>@Money((row.給与額自, v => row.給与額自 = v))</td>
+                                    <td>@Money((row.給与額至, v => row.給与額至 = v))</td>
+                                    <td style="text-align:right; white-space:nowrap; color:rgba(0,0,0,.6);">@(mid ? "(A) ×" : "")</td>
+                                    <td>@Rate((row.控除率, v => row.控除率 = v))</td>
+                                    <td style="text-align:left; white-space:nowrap; color:rgba(0,0,0,.6);">@(mid ? "%  +" : "")</td>
+                                    <td>@Money((row.控除額, v => row.控除額 = v))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </div>
+            </MudPaper>
+
+            <MudPaper Elevation="1" Class="pa-4 mb-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>別表第2</b></MudText>
+                @if (_b.別表2.Count > 0)
+                {
+                    var row = _b.別表2[0];
+                    <div style="overflow-x:auto;">
+                        <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="min-width:520px;">
+                            <tbody>
+                                <tr>
+                                    <td style="white-space:nowrap;">配偶者控除の額　又は　配偶者特別控除の額</td>
+                                    <td>@Money((row.配偶者控除, v => row.配偶者控除 = v))</td>
+                                    <td></td>
+                                </tr>
+                                <tr>
+                                    <td style="white-space:nowrap;">扶養控除の額　又は　特定親族特別控除の額</td>
+                                    <td>@Money((row.扶養控除, v => row.扶養控除 = v))</td>
+                                    <td style="white-space:nowrap; color:rgba(0,0,0,.6);">× 源泉控除対象親族の数</td>
+                                </tr>
+                            </tbody>
+                        </MudSimpleTable>
+                    </div>
+                }
+            </MudPaper>
+
+            <MudPaper Elevation="1" Class="pa-4 mb-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>別表第3</b></MudText>
+                <div style="overflow-x:auto;">
+                    <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="min-width:480px;">
+                        <thead>
+                            <tr>
+                                <th colspan="2" style="text-align:center;">社会保険料控除後の給与額(A)</th>
+                                <th colspan="2" rowspan="2" style="text-align:center; vertical-align:middle;">基礎控除の額</th>
+                            </tr>
+                            <tr>
+                                <th style="text-align:center;">以上</th>
+                                <th style="text-align:center;">以下</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _b.別表3)
+                            {
+                                <tr>
+                                    <td>@Money((row.給与額自, v => row.給与額自 = v))</td>
+                                    <td>@Money((row.給与額至, v => row.給与額至 = v))</td>
+                                    <td>@Money((row.控除額, v => row.控除額 = v))</td>
+                                    <td style="text-align:center; color:rgba(0,0,0,.6);">円</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </div>
+            </MudPaper>
+
+            <MudPaper Elevation="1" Class="pa-4 mb-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>別表第4</b></MudText>
+                <div style="overflow-x:auto;">
+                    <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="min-width:560px;">
+                        <thead>
+                            <tr>
+                                <th colspan="2" style="text-align:center;">課税給与所得金額(B)</th>
+                                <th colspan="4" rowspan="2" style="text-align:center; vertical-align:middle;">税額の算式</th>
+                            </tr>
+                            <tr>
+                                <th style="text-align:center;">以上</th>
+                                <th style="text-align:center;">以下</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < _b.別表4.Count; i++)
+                            {
+                                var row = _b.別表4[i];
+                                <tr>
+                                    <td>@Money((row.給与額自, v => row.給与額自 = v))</td>
+                                    <td>@Money((row.給与額至, v => row.給与額至 = v))</td>
+                                    <td style="text-align:right; white-space:nowrap; color:rgba(0,0,0,.6);">(B) ×</td>
+                                    <td>@Rate((row.税率, v => row.税率 = v))</td>
+                                    <td style="text-align:left; white-space:nowrap; color:rgba(0,0,0,.6);">@(i != 0 ? "%  -" : "")</td>
+                                    <td>@Money((row.控除額, v => row.控除額 = v))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </div>
+            </MudPaper>
+
+        </MudTabPanel>
+
+        <MudTabPanel Text="月額表（乙欄）" Icon="@Icons.Material.Filled.TableRows">
+
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mt-2 mb-3">
+                月額表の乙欄（従たる給与）を適用する給与の源泉税を、電算機計算で求めるための各表です
+                （計算基準額 105,000〜740,000円の区分で使用）。税制改正で値が変わった場合のみ修正してください。
+            </MudAlert>
+
+            <MudPaper Elevation="1" Class="pa-4 mb-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>第1表（給与所得控除の額）</b></MudText>
+                <div style="overflow-x:auto;">
+                    <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="min-width:560px;">
+                        <thead>
+                            <tr>
+                                <th colspan="2" style="text-align:center;">計算基準額を2.5倍又は1.5倍した金額(A)</th>
+                                <th colspan="4" rowspan="2" style="text-align:center; vertical-align:middle;">給与所得控除の額</th>
+                            </tr>
+                            <tr><th style="text-align:center;">以上</th><th style="text-align:center;">以下</th></tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < _b.乙税第1.Count; i++)
+                            {
+                                var row = _b.乙税第1[i];
+                                var mid = row.控除率 is not null;
+                                <tr>
+                                    <td>@Money((row.給与額自, v => row.給与額自 = v))</td>
+                                    <td>@Money((row.給与額至, v => row.給与額至 = v))</td>
+                                    <td style="text-align:right; white-space:nowrap; color:rgba(0,0,0,.6);">@(mid ? "(A) ×" : "")</td>
+                                    <td>@Rate((row.控除率, v => row.控除率 = v))</td>
+                                    <td style="text-align:left; white-space:nowrap; color:rgba(0,0,0,.6);">@(mid ? "%  +" : "")</td>
+                                    <td>@Money((row.控除額, v => row.控除額 = v))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </div>
+            </MudPaper>
+
+            <MudPaper Elevation="1" Class="pa-4 mb-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>第2表（基礎控除の額）</b></MudText>
+                @if (_b.乙税第2.Count > 0)
+                {
+                    var row = _b.乙税第2[0];
+                    <div style="overflow-x:auto;">
+                        <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="min-width:420px;">
+                            <tbody>
+                                <tr>
+                                    <td style="white-space:nowrap;">計算基準額を2.5倍又は1.5倍した金額に対する基礎控除の額</td>
+                                    <td>@Money((row.控除額, v => row.控除額 = v))</td>
+                                    <td style="text-align:center; color:rgba(0,0,0,.6);">円</td>
+                                </tr>
+                            </tbody>
+                        </MudSimpleTable>
+                    </div>
+                }
+            </MudPaper>
+
+            <MudPaper Elevation="1" Class="pa-4 mb-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>第3表（税額の算式）</b></MudText>
+                <div style="overflow-x:auto;">
+                    <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="min-width:560px;">
+                        <thead>
+                            <tr>
+                                <th colspan="2" style="text-align:center;">課税給与所得金額(B)</th>
+                                <th colspan="4" rowspan="2" style="text-align:center; vertical-align:middle;">税額の算式</th>
+                            </tr>
+                            <tr><th style="text-align:center;">以上</th><th style="text-align:center;">以下</th></tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < _b.乙税第3.Count; i++)
+                            {
+                                var row = _b.乙税第3[i];
+                                <tr>
+                                    <td>@Money((row.給与額自, v => row.給与額自 = v))</td>
+                                    <td>@Money((row.給与額至, v => row.給与額至 = v))</td>
+                                    <td style="text-align:right; white-space:nowrap; color:rgba(0,0,0,.6);">(B) ×</td>
+                                    <td>@Rate((row.控除率, v => row.控除率 = v))</td>
+                                    <td style="text-align:left; white-space:nowrap; color:rgba(0,0,0,.6);">@(row.控除額 is not null ? "%  -" : "%")</td>
+                                    <td>@Money((row.控除額, v => row.控除額 = v))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </div>
+            </MudPaper>
+
+            <MudPaper Elevation="1" Class="pa-4 mb-4">
+                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>階差（計算基準額の算出）</b></MudText>
+                <div style="overflow-x:auto;">
+                    <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="min-width:480px;">
+                        <thead>
+                            <tr>
+                                <th colspan="2" style="text-align:center;">社会保険料等控除後の給与等の金額</th>
+                                <th rowspan="2" style="text-align:center; vertical-align:middle;">階差</th>
+                            </tr>
+                            <tr><th style="text-align:center;">以上</th><th style="text-align:center;">以下</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _b.乙税階差)
+                            {
+                                <tr>
+                                    <td>@Money((row.給与額自, v => row.給与額自 = v))</td>
+                                    <td>@Money((row.給与額至, v => row.給与額至 = v))</td>
+                                    <td>@Money((row.階差, v => row.階差 = v))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </div>
+            </MudPaper>
+
+        </MudTabPanel>
+
+        <MudTabPanel Text="賞与（甲欄）" Icon="@Icons.Material.Filled.Redeem">
+            <MudPaper Elevation="1" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-1">賞与の源泉徴収税額表（甲欄）</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                    前月の社会保険料控除後の給与等の金額（扶養親族等の人数別の境界額）と、賞与に乗ずる率（%）。
+                </MudText>
+                <div style="overflow-x:auto;">
+                    <MudSimpleTable Dense="true" Bordered="true" Striped="true" Class="compact-cells" Style="min-width:820px;">
+                        <thead>
+                            <tr>
+                                <th colspan="8" style="text-align:center;">扶養親族等の数</th>
+                                <th rowspan="3" style="text-align:center; vertical-align:middle;">賞与に<br />乗ずる率</th>
+                            </tr>
+                            <tr>
+                                <th style="text-align:center;">0人</th><th style="text-align:center;">1人</th>
+                                <th style="text-align:center;">2人</th><th style="text-align:center;">3人</th>
+                                <th style="text-align:center;">4人</th><th style="text-align:center;">5人</th>
+                                <th style="text-align:center;">6人</th><th style="text-align:center;">7人以上</th>
+                            </tr>
+                            <tr>
+                                <th colspan="8" style="text-align:center;">前月の社会保険料控除後の給与等の金額</th>
+                            </tr>
+                            <tr>
+                                <th style="text-align:center;">以上(円)</th><th style="text-align:center;">以上(円)</th>
+                                <th style="text-align:center;">以上(円)</th><th style="text-align:center;">以上(円)</th>
+                                <th style="text-align:center;">以上(円)</th><th style="text-align:center;">以上(円)</th>
+                                <th style="text-align:center;">以上(円)</th><th style="text-align:center;">以上(円)</th>
+                                <th style="text-align:center;">%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _b.賞与甲)
+                            {
+                                <tr>
+                                    <td>@MoneyN((row.金額0人, v => row.金額0人 = v))</td>
+                                    <td>@MoneyN((row.金額1人, v => row.金額1人 = v))</td>
+                                    <td>@MoneyN((row.金額2人, v => row.金額2人 = v))</td>
+                                    <td>@MoneyN((row.金額3人, v => row.金額3人 = v))</td>
+                                    <td>@MoneyN((row.金額4人, v => row.金額4人 = v))</td>
+                                    <td>@MoneyN((row.金額5人, v => row.金額5人 = v))</td>
+                                    <td>@MoneyN((row.金額6人, v => row.金額6人 = v))</td>
+                                    <td>@MoneyN((row.金額7人以上, v => row.金額7人以上 = v))</td>
+                                    <td>@RateN((row.率, v => row.率 = v))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </div>
+            </MudPaper>
+        </MudTabPanel>
+
+        <MudTabPanel Text="賞与（乙欄）" Icon="@Icons.Material.Filled.Redeem">
+            <MudPaper Elevation="1" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-1">賞与の源泉徴収税額表（乙欄）</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                    前月の社会保険料控除後の給与等の金額（境界額）と、賞与に乗ずる率（%）。
+                </MudText>
+                <div style="overflow-x:auto;">
+                    <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="min-width:360px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align:center;">社会保険料控除後の給与等の金額</th>
+                                <th style="text-align:center;">賞与に乗ずる率</th>
+                            </tr>
+                            <tr><th style="text-align:center;">以上(円)</th><th style="text-align:center;">%</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _b.賞与乙)
+                            {
+                                <tr>
+                                    <td>@Money((row.金額, v => row.金額 = v))</td>
+                                    <td>@Rate((row.率, v => row.率 = v))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </div>
+            </MudPaper>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    private TaxTableBundle _b = new();
+    private bool _loading = true;
+    private bool _saving;
+    // 選択タブは回線単位で保持（別画面から戻っても直前のタブを維持）。
+    private int ActiveTab { get => TabState.Get("taxtable"); set => TabState.Set("taxtable", value); }
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try { _b = await Task.Run(() => Db.LoadTaxTables()); }
+        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var toSave = _b;
+            await Task.Run(() => Db.SaveTaxTables(toSave));
+            Snackbar.Add("月額表を登録しました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"登録に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _saving = false; }
+    }
+}

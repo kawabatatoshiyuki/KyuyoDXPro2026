@@ -1,0 +1,129 @@
+@page "/payroll/ledger-month"
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>賃金台帳（支給日別）｜給与計算DXPro</PageTitle>
+
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">賃金台帳（支給日別）</MudText>
+            </div>
+            <div class="proc-header__controls">
+                <MudSelect T="string" Value="_kind" ValueChanged="OnKindChanged" Label="台帳の種類"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:130px;">
+                    <MudSelectItem T="string" Value="@("salary")">給与台帳</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("bonus")">賞与台帳</MudSelectItem>
+                </MudSelect>
+                <MudSelect T="int" Value="_round" ValueChanged="OnRoundChanged" Label="@(_kind == "bonus" ? "賞与回" : "支給月分")"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:200px;">
+                    @foreach (var r in CurrentRounds())
+                    {
+                        int v = r.回;
+                        <MudSelectItem T="int" Value="v">@r.ラベル</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="string" Value="_dept" ValueChanged="OnDeptChanged" Label="部門"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:150px;">
+                    <MudSelectItem T="string" Value="@("")">全部門</MudSelectItem>
+                    @foreach (var d in _opt.部門)
+                    {
+                        <MudSelectItem T="string" Value="d">@d</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+        </div>
+        <div class="proc-header__actions">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Preview"
+                       OnClick="Preview" Disabled="@(!CurrentRounds().Any())">プレビュー</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                       Href="@PdfUrl" Target="_blank" Disabled="@(!CurrentRounds().Any())">PDF出力（別タブ）</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="3">
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">出力対象</div>
+            <MudSwitch T="bool" Value="_includeEmpty" ValueChanged="OnIncludeEmptyChanged" Color="Color.Primary"
+                       Label="賃金が発生していない従業員も含める" Class="mb-1" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-2">
+                ・選択した@(_kind == "bonus" ? "賞与回" : "支給月")の、全従業員を「項目×従業員」のクロス集計で出力します。<br />
+                ・部門を選ぶとその部門の従業員のみに絞り込みます。<br />
+                ・各ページに当ページ従業員の小計、右端に全従業員の合計を表示します。<br />
+                ・「賃金が発生していない従業員も含める」をオフにすると、当月に給与（賞与）の無い従業員は除外します。
+            </MudText>
+        </MudPaper>
+
+        @if (!CurrentRounds().Any())
+        {
+            <MudPaper Elevation="1" Class="pa-4 mt-3">
+                <MudText Color="Color.Secondary">
+                    @(_kind == "bonus" ? "賞与の支給予定" : "給与の支給月")が登録されていません。先に「支給日情報」を登録してください。
+                </MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/setup/paydays"
+                           StartIcon="@Icons.Material.Filled.EditCalendar" Class="mt-3">支給日情報へ</MudButton>
+            </MudPaper>
+        }
+    </MudItem>
+
+    <MudItem xs="12" md="8">
+        <div class="mt-1">
+            @if (string.IsNullOrEmpty(_previewUrl))
+            {
+                <MudPaper Elevation="1" Class="pa-6">
+                    <MudText Class="pa-3" Color="Color.Secondary">「プレビュー」を押すと、賃金台帳を右側に表示します。</MudText>
+                </MudPaper>
+            }
+            else
+            {
+                <iframe src="@_previewUrl" style="width:100%;height:82vh;border:1px solid var(--mud-palette-divider);border-radius:6px;"></iframe>
+            }
+        </div>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string _kind = "salary";
+    private int _round = 1;
+    private string _dept = "";
+    private bool _includeEmpty;
+    private string _previewUrl = "";
+    private WageLedgerOptions _opt = new(Array.Empty<WageLedgerRound>(), Array.Empty<WageLedgerRound>(), Array.Empty<string>(), "給与", 1);
+
+    private IEnumerable<WageLedgerRound> CurrentRounds()
+        => (_kind == "bonus" ? _opt.賞与回 : _opt.給与回).Where(x => x.選択可);
+
+    private string PdfUrl
+        => $"/payroll/wage-ledger/pdf?kind={_kind}&round={_round}&dept={Uri.EscapeDataString(_dept)}&empty={_includeEmpty.ToString().ToLower()}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _opt = await Task.Run(() => Db.GetWageLedgerOptions());
+            _kind = _opt.既定種別 == "賞与" ? "bonus" : "salary";
+            _round = _opt.既定回;
+            EnsureValidRound();
+        }
+        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+    }
+
+    // 現在の種類で選択可能な回に _round を合わせる（無ければ先頭）。
+    private void EnsureValidRound()
+    {
+        var rounds = CurrentRounds().ToList();
+        if (rounds.Count == 0) return;
+        if (!rounds.Any(r => r.回 == _round)) _round = rounds[0].回;
+    }
+
+    private void OnKindChanged(string k) { _kind = k; EnsureValidRound(); _previewUrl = ""; }
+    private void OnRoundChanged(int r) { _round = r; _previewUrl = ""; }
+    private void OnDeptChanged(string d) { _dept = d; _previewUrl = ""; }
+    private void OnIncludeEmptyChanged(bool v) { _includeEmpty = v; _previewUrl = ""; }
+
+    private void Preview() => _previewUrl = PdfUrl;
+}

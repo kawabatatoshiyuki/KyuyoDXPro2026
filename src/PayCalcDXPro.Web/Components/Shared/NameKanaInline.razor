@@ -1,0 +1,63 @@
+@namespace PayCalcDXPro.Web.Components.Shared
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@* 氏名＋フリガナの組（横並び・コンパクト版 Variant.Text）。
+   氏名をIMEで入力すると読み（カタカナ）をフリガナへ自動反映（従業員マスタと同じ payInput.bindAutoKana）。
+   フリガナは TAB/Enter のフォーカス移動対象外（tabindex=-1 ＋ .js-enter-skip）。 *@
+<div @ref="_container" style="display:flex; gap:8px; align-items:flex-start;">
+    <MudTextField T="string" Value="Name" ValueChanged="OnNameChanged" Label="@NameLabel"
+                  Variant="Variant.Text" Margin="Margin.Dense" Class="js-name" Style="@($"width:{NameWidth};")" />
+    <MudTextField T="string" Value="Kana" ValueChanged="OnKanaChanged" Label="@KanaLabel"
+                  Variant="Variant.Text" Margin="Margin.Dense" Class="js-kana js-enter-skip" tabindex="-1" Style="@($"width:{KanaWidth};")" />
+</div>
+
+@code {
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public EventCallback<string> NameChanged { get; set; }
+    [Parameter] public string Kana { get; set; } = "";
+    [Parameter] public EventCallback<string> KanaChanged { get; set; }
+    [Parameter] public string NameLabel { get; set; } = "氏名";
+    [Parameter] public string KanaLabel { get; set; } = "フリガナ";
+    [Parameter] public string NameWidth { get; set; } = "120px";
+    [Parameter] public string KanaWidth { get; set; } = "120px";
+
+    private ElementReference _container;
+    private DotNetObjectReference<NameKanaInline>? _ref;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _ref = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("payInput.bindAutoKana", _container, _ref);
+        }
+    }
+
+    private async Task OnNameChanged(string v)
+    {
+        Name = v;
+        await NameChanged.InvokeAsync(v);
+    }
+
+    private async Task OnKanaChanged(string v)
+    {
+        Kana = v;
+        await KanaChanged.InvokeAsync(v);
+    }
+
+    // JS から読み（カタカナ）を受け取りフリガナへ反映する。
+    [JSInvokable]
+    public async Task OnKana(string kana)
+    {
+        Kana = kana;
+        await KanaChanged.InvokeAsync(kana);
+        StateHasChanged();
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _ref?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

@@ -1,0 +1,189 @@
+@page "/setup/items"
+@using PayCalcDXPro.Data.PayItem
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject PayCalcDXPro.Web.TabStateService TabState
+
+<PageTitle>支給・控除項目｜給与計算DXPro</PageTitle>
+
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Tune" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">支給・控除項目</MudText>
+        </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="@(_loading || _saving)">登録する</MudButton>
+    </MudStack>
+</MudPaper>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+}
+else
+{
+    @* 固定項目（読み取り専用・グレー表示）の行テンプレート。 *@
+    RenderFragment<string> Fixed = key =>@<MudTextField Value="@FixedLabel(key)" ReadOnly="true"
+                                                        Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2 fixed-item" />;
+
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2 mb-2">
+        明細書（給与・賞与計算の入力画面）の並びに合わせて、左に支給（手当）項目・右に控除項目を配置しています。
+        グレーの項目は標準の固定項目（名称変更不可）です。空欄に手当・控除の項目名を入力します。
+    </MudText>
+
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" KeepPanelsAlive="true" Class="spaced-tabs" @bind-ActivePanelIndex="ActiveTab">
+        <MudTabPanel Text="給与" Icon="@Icons.Material.Filled.Payments">
+            <MudGrid Spacing="4">
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                            <MudIcon Icon="@Icons.Material.Filled.AddCard" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">支給項目</MudText>
+                        </MudStack>
+                        @Fixed("基本給")
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">手当項目（「非課税」をオンにすると非課税手当）</MudText>
+                        @foreach (var a in _model.給与手当)
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+                                <MudCheckBox @bind-Value="a.非課税" Color="Color.Secondary" Dense="true" Label="非課税" tabindex="-1" />
+                                <MudTextField @bind-Value="a.名称" Placeholder="手当項目名" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudStack>
+                        }
+                        @Fixed("時間外手当")
+                        @Fixed("勤怠控除")
+                        @Fixed("課税通勤費")
+                        @Fixed("非課税通勤費")
+                        @Fixed("給与総支給額")
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                            <MudIcon Icon="@Icons.Material.Filled.RemoveCircleOutline" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">控除項目</MudText>
+                        </MudStack>
+                        @Fixed("給与健康保険")
+                        @Fixed("給与介護保険")
+                        @Fixed("給与子育支援")
+                        @Fixed("給与厚生年金")
+                        @Fixed("給与年金基金")
+                        @Fixed("給与小規模共済")
+                        @Fixed("給与雇用保険")
+                        @Fixed("給与社会保険合計")
+                        @Fixed("給与課税対象額")
+                        @Fixed("給与所得税")
+                        @Fixed("給与住民税")
+                        @foreach (var c in _model.給与控除)
+                        {
+                            <MudTextField @bind-Value="c.名称" Placeholder="控除項目名" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                        }
+                        @Fixed("総控除額")
+                        @Fixed("給与控除差引支給額")
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        <MudTabPanel Text="賞与" Icon="@Icons.Material.Filled.Redeem">
+            <MudGrid Spacing="4">
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                            <MudIcon Icon="@Icons.Material.Filled.AddCard" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">支給項目</MudText>
+                        </MudStack>
+                        @Fixed("賞与")
+                        @foreach (var a in _model.賞与手当)
+                        {
+                            <MudTextField @bind-Value="a.名称" Placeholder="手当項目名" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                        }
+                        @Fixed("賞与総支給額")
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                            <MudIcon Icon="@Icons.Material.Filled.RemoveCircleOutline" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">控除項目</MudText>
+                        </MudStack>
+                        @Fixed("賞与健康保険")
+                        @Fixed("賞与介護保険")
+                        @Fixed("賞与子育支援")
+                        @Fixed("賞与厚生年金")
+                        @Fixed("賞与年金基金")
+                        @Fixed("賞与小規模共済")
+                        @Fixed("賞与雇用保険")
+                        @Fixed("賞与社会保険合計")
+                        @Fixed("賞与課税対象額")
+                        @Fixed("賞与所得税")
+                        @foreach (var c in _model.賞与控除)
+                        {
+                            <MudTextField @bind-Value="c.名称" Placeholder="控除項目名" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                        }
+                        @Fixed("賞与総控除額")
+                        @Fixed("賞与控除差引支給額")
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+    </MudTabs>
+
+    <MudPaper Elevation="1" Class="pa-4 mb-4 mt-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+            <MudIcon Icon="@Icons.Material.Filled.Print" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">印字設定</MudText>
+        </MudStack>
+        <MudSwitch @bind-Value="_model.項目名印字" Color="Color.Primary"
+                   Label="金額が0円の支給項目・控除項目は給与・賞与明細書に項目名を印字しない" />
+    </MudPaper>
+}
+
+@code {
+    private PayItemSettings _model = new();
+    private bool _loading = true;
+    private bool _saving;
+    // 選択タブは回線単位で保持（別画面から戻っても直前のタブを維持）。
+    private int ActiveTab { get => TabState.Get("items"); set => TabState.Set("items", value); }
+
+    private string FixedLabel(string key)
+        => _model.固定ラベル.TryGetValue(key, out var v) && !string.IsNullOrEmpty(v) ? v : key;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _model = await Task.Run(() => Db.LoadPayItems());
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var toSave = _model;
+            await Task.Run(() => Db.SavePayItems(toSave));
+            Snackbar.Add("支給・控除項目を登録しました。", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"登録に失敗しました：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

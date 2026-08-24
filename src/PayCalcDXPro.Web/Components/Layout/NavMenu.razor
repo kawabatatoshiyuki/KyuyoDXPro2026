@@ -1,0 +1,90 @@
+@inject NavigationManager Nav
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Routing
+
+@* 現行 F_menu の機能グループをサイドナビへ翻訳。各リンク先は段階的に実装。
+   未実装ルートはキャッチオール（ComingSoon）が受けるため404にならない。 *@
+<MudNavMenu>
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">ダッシュボード</MudNavLink>
+
+    <MudNavGroup Title="導入設定" Icon="@Icons.Material.Filled.Settings">
+        <MudNavLink Href="/setup/company" Icon="@Icons.Material.Filled.Business">会社情報</MudNavLink>
+        <MudNavLink Href="/setup/paydays" Icon="@Icons.Material.Filled.Event">支払日</MudNavLink>
+        <MudNavLink Href="/setup/items" Icon="@Icons.Material.Filled.Tune">支給・控除項目</MudNavLink>
+        <MudNavLink Href="/setup/employees" Icon="@Icons.Material.Filled.Groups">従業員</MudNavLink>
+        <MudNavLink Href="/setup/ledger-print" Icon="@Icons.Material.Filled.Print">台帳印刷</MudNavLink>
+        <MudNavGroup Title="マイナンバー管理" Icon="@Icons.Material.Filled.Badge">
+            <MudNavLink Href="/setup/mynumber" Icon="@Icons.Material.Filled.Badge">マイナンバー</MudNavLink>
+            <MudNavLink Href="/setup/audit-log" Icon="@Icons.Material.Filled.History">アクセスログ</MudNavLink>
+        </MudNavGroup>
+    </MudNavGroup>
+
+    <MudNavGroup Title="給与・賞与" Icon="@Icons.Material.Filled.Payments">
+        <MudNavLink Href="/payroll/process" Icon="@Icons.Material.Filled.Calculate">給与計算</MudNavLink>
+        <MudNavLink Href="/bonus/process" Icon="@Icons.Material.Filled.Redeem">賞与計算</MudNavLink>
+        <MudNavLink Href="/payroll/payslip" Icon="@Icons.Material.Filled.ReceiptLong">支払明細書</MudNavLink>
+        <MudNavLink Href="/payroll/ledger-month" Icon="@Icons.Material.Filled.TableChart">賃金台帳（支給月分）</MudNavLink>
+        <MudNavLink Href="/payroll/ledger-employee" Icon="@Icons.Material.Filled.TableRows">賃金台帳（従業員別）</MudNavLink>
+        <MudNavLink Href="/payroll/reports" Icon="@Icons.Material.Filled.Description">関連帳票</MudNavLink>
+    </MudNavGroup>
+
+    <MudNavGroup Title="年末調整" Icon="@Icons.Material.Filled.EventNote" @bind-Expanded="_年末調整展開">
+        <MudNavLink Href="/year-end/employee" Icon="@Icons.Material.Filled.Person">年末調整計算</MudNavLink>
+        <MudNavGroup Title="支払調書の作成" Icon="@Icons.Material.Filled.Description" @bind-Expanded="_支払調書展開">
+            <MudNavLink Href="/year-end/retirement" Icon="@Icons.Material.Filled.Logout">退職源泉</MudNavLink>
+            <MudNavLink Href="/year-end/reward" Icon="@Icons.Material.Filled.Paid">報酬</MudNavLink>
+            <MudNavLink Href="/year-end/realestate" Icon="@Icons.Material.Filled.Home">不動産</MudNavLink>
+            <MudNavLink Href="/year-end/realestate-transfer" Icon="@Icons.Material.Filled.SwapHoriz">不動産譲受</MudNavLink>
+            <MudNavLink Href="/year-end/realestate-mediation" Icon="@Icons.Material.Filled.Handshake">不動産あっせん</MudNavLink>
+        </MudNavGroup>
+        <MudNavLink Href="/year-end/withholding-slip" Icon="@Icons.Material.Filled.Article">源泉徴収票／徴収簿</MudNavLink>
+        <MudNavLink Href="/year-end/summary" Icon="@Icons.Material.Filled.Summarize">集計表</MudNavLink>
+        <MudNavLink Href="/year-end/legal-documents" Icon="@Icons.Material.Filled.Gavel">法定調書印刷</MudNavLink>
+    </MudNavGroup>
+
+    <MudNavGroup Title="設定" Icon="@Icons.Material.Filled.Build">
+        <MudNavLink Href="/settings/insurance-rates" Icon="@Icons.Material.Filled.Percent">保険料率</MudNavLink>
+        <MudNavLink Href="/settings/tax-table" Icon="@Icons.Material.Filled.Functions">所得税（月額表）</MudNavLink>
+        <MudNavLink Href="/settings/timecard" Icon="@Icons.Material.Filled.AccessTime">タイムカード転記設定</MudNavLink>
+        <MudNavLink Href="/settings/backup" Icon="@Icons.Material.Filled.Backup">バックアップ＆復元</MudNavLink>
+        <MudNavLink Href="/settings/account" Icon="@Icons.Material.Filled.Lock">セキュリティアカウント</MudNavLink>
+        <MudNavLink Href="/settings/init" Icon="@Icons.Material.Filled.RestartAlt">データ初期化</MudNavLink>
+    </MudNavGroup>
+
+    <MudDivider Class="my-2" />
+    <MudNavLink Href="/help" Icon="@Icons.Material.Filled.HelpOutline">マニュアル・ヘルプ</MudNavLink>
+</MudNavMenu>
+
+@code {
+    private bool _年末調整展開;
+    private bool _支払調書展開;
+
+    protected override void OnInitialized()
+    {
+        UpdateExpanded();
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        UpdateExpanded();
+        StateHasChanged();
+    }
+
+    // 支払調書系ページ（退職源泉・報酬・不動産／譲受／あっせん）にいる間は「年末調整」と「支払調書の作成」
+    // グループを展開しておく（ダッシュボード④「法定調書を作成する」からの導線を分かりやすくする）。
+    private void UpdateExpanded()
+    {
+        var path = new Uri(Nav.Uri).AbsolutePath;
+        bool 支払調書 = path.StartsWith("/year-end/retirement", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/year-end/reward", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/year-end/realestate", StringComparison.OrdinalIgnoreCase);
+        if (支払調書)
+        {
+            _支払調書展開 = true;
+            _年末調整展開 = true;
+        }
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+}

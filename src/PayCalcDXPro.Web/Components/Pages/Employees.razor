@@ -1,0 +1,273 @@
+@page "/setup/employees"
+@using PayCalcDXPro.Data.Employee
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject IJSRuntime JS
+
+<PageTitle>従業員｜給与計算DXPro</PageTitle>
+
+@* タイトルヘッダーを固定（会社情報と同じ）。編集中は「更新する」を表示。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Groups" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">従業員</MudText>
+        </MudStack>
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FileDownload"
+                       OnClick="ExportCsv" Disabled="@(_loading || _items.Count == 0)">
+                CSV出力
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveFromHeader" Disabled="@(_model is null || _headerSaving)">
+                更新する
+            </MudButton>
+        </MudStack>
+    </MudStack>
+</MudPaper>
+
+<MudGrid Spacing="3">
+    <!-- 左：従業員一覧（ドラッグで並び替え） -->
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.PersonAdd" Class="mb-2" OnClick="NewEmployee"
+                       Disabled="@(_items.Count >= MaxEmployees)">
+                新規登録（@_items.Count/@MaxEmployees）
+            </MudButton>
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="px-1 pb-2">
+                行をドラッグして並び順を変更できます。@(string.IsNullOrWhiteSpace(_search) ? "" : "（検索中は並び替えできません）")
+            </MudText>
+            @if (_loading)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-2" />
+            }
+            else if (_items.Count == 0)
+            {
+                <MudText Class="pa-3" Color="Color.Secondary">従業員が登録されていません。「新規登録」から追加してください。</MudText>
+            }
+            else
+            {
+                <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Immediate="true" DebounceInterval="150"
+                              Placeholder="氏名・フリガナ・No で絞り込み" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                              Clearable="true" Class="mb-2" />
+                <div style="max-height:calc(100vh - 300px);overflow-y:auto;">
+                @if (_view.Count == 0)
+                {
+                    <MudText Class="pa-3" Color="Color.Secondary">「@_search」に一致する従業員がいません。</MudText>
+                }
+                else
+                {
+                <MudDropContainer T="EmployeeListItem" Items="_view" @ref="_dc"
+                                  ItemsSelector="@((i, zone) => true)" ItemDropped="OnDropped">
+                    <ChildContent>
+                        <MudDropZone T="EmployeeListItem" Identifier="emp" AllowReorder="@string.IsNullOrWhiteSpace(_search)" />
+                    </ChildContent>
+                    <ItemRenderer>
+                        <MudPaper Outlined="true" Class="@RowClass(context)" Style="cursor:pointer;"
+                                  @onclick="@(() => SelectAsync(context))">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Size="Size.Small" Color="Color.Default" />
+                                <div class="flex-grow-1">
+                                    <MudText Typo="Typo.body1">@context.氏名</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        No.@context.No
+                                        @(string.IsNullOrEmpty(context.部門名) ? "" : $" / {context.部門名}")
+                                        @(string.IsNullOrEmpty(context.役職名) ? "" : $" / {context.役職名}")
+                                    </MudText>
+                                </div>
+                                @if (context.退職)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">退職</MudChip>
+                                }
+                            </MudStack>
+                        </MudPaper>
+                    </ItemRenderer>
+                </MudDropContainer>
+                }
+                </div>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <!-- 右：編集フォーム（セクションカードを映えさせるため白背景の枠は付けない） -->
+    <MudItem xs="12" md="8">
+        <div>
+            @if (_model is null)
+            {
+                <MudPaper Elevation="1" Class="pa-4">
+                    <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Class="py-12">
+                        <MudIcon Icon="@Icons.Material.Filled.Badge" Size="Size.Large" Color="Color.Secondary" />
+                        <MudText Color="Color.Secondary">左の一覧から従業員を選ぶか、「新規登録」を押してください。</MudText>
+                    </MudStack>
+                </MudPaper>
+            }
+            else
+            {
+                <EmployeeEditor @ref="_editor" Model="_model" Options="_opt" IsNew="_isNew"
+                                OnSaved="HandleSaved" OnDeleted="HandleDeleted" />
+            }
+        </div>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private List<EmployeeListItem> _items = new();   // 全件（並び順の正）
+    private List<EmployeeListItem> _view = new();     // 表示中（検索適用後。未検索時は_itemsと同一参照）
+    private string _search = "";
+    private EmployeeFormOptions _opt = new();
+    private MudDropContainer<EmployeeListItem>? _dc;
+    private Employee? _model;
+    private EmployeeEditor? _editor;
+    private bool _isNew;
+    private int _selected;
+    private bool _loading = true;
+    private bool _headerSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _opt = await Task.Run(() => Db.GetEmployeeFormOptions());
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error);
+        }
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var items = await Task.Run(() => Db.ListEmployees());
+            _items = items.ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+        ApplyFilter();
+    }
+
+    // 検索（氏名・フリガナ・No の部分一致）。未検索時は _view = _items（同一参照）で並び替えをそのまま有効化。
+    private void ApplyFilter()
+    {
+        _view = string.IsNullOrWhiteSpace(_search)
+            ? _items
+            : _items.Where(MatchSearch).ToList();
+        _dc?.Refresh();
+    }
+
+    private bool MatchSearch(EmployeeListItem it)
+    {
+        var s = _search.Trim();
+        return (it.氏名?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (it.フリガナ?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (it.No?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private void OnSearchChanged(string? v)
+    {
+        _search = v ?? "";
+        ApplyFilter();
+    }
+
+    private string RowClass(EmployeeListItem item)
+        => "pa-2 mb-1" + (item.Number == _selected ? " mud-theme-primary" : "");
+
+    /// <summary>出力する従業員を選択させ、選択分を基本情報CSVとしてダウンロードする。</summary>
+    private async Task ExportCsv()
+    {
+        if (_items.Count == 0) { Snackbar.Add("従業員が登録されていません。", Severity.Info); return; }
+        var parameters = new DialogParameters { ["Employees"] = (IReadOnlyList<EmployeeListItem>)_items };
+        var dialog = await Dialog.ShowAsync<Components.Shared.EmployeeCsvExportDialog>("従業員情報のCSV出力", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not List<int> nums || nums.Count == 0) return;
+
+        // ダウンロードは GET エンドポイントを新規タブで開いて実行する（Content-Disposition=attachment）。
+        var url = "/setup/employees/csv?nums=" + string.Join(",", nums);
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    private async Task SaveFromHeader()
+    {
+        if (_editor is null) return;
+        _headerSaving = true;
+        try { await _editor.SaveAsync(); }
+        finally { _headerSaving = false; }
+    }
+
+    /// <summary>従業員の登録上限（50名）。</summary>
+    private const int MaxEmployees = 50;
+
+    private void NewEmployee()
+    {
+        if (_items.Count >= MaxEmployees)
+        {
+            Snackbar.Add($"従業員は最大{MaxEmployees}名まで登録できます。", Severity.Warning);
+            return;
+        }
+        _model = new Employee { No = "" };
+        _isNew = true;
+        _selected = 0;
+    }
+
+    private async Task SelectAsync(EmployeeListItem item)
+    {
+        try
+        {
+            var e = await Task.Run(() => Db.LoadEmployee(item.Number));
+            if (e is null) { await ReloadAsync(); return; }
+            _model = e;
+            _isNew = false;
+            _selected = item.Number;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OnDropped(MudItemDropInfo<EmployeeListItem> info)
+    {
+        if (info.Item is null) return;
+        _items.Remove(info.Item);
+        int idx = Math.Clamp(info.IndexInZone, 0, _items.Count);
+        _items.Insert(idx, info.Item);
+        _dc?.Refresh();
+        try
+        {
+            var order = _items.Select(x => x.Number).ToList();
+            await Task.Run(() => Db.UpdateEmployeeOrder(order));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"並び順の保存に失敗しました：{ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task HandleSaved(int number)
+    {
+        await ReloadAsync();
+        _selected = number;
+        _isNew = false;
+        _model = await Task.Run(() => Db.LoadEmployee(number));
+    }
+
+    private async Task HandleDeleted()
+    {
+        _model = null;
+        _selected = 0;
+        await ReloadAsync();
+    }
+}

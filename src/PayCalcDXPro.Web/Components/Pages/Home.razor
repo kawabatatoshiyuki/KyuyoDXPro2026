@@ -1,0 +1,221 @@
+@page "/"
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject NavigationManager Nav
+@inject PayCalcDXPro.Web.TabStateService TabState
+
+<PageTitle>ダッシュボード｜給与計算DXPro</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+    <MudIcon Icon="@Icons.Material.Filled.Dashboard" Size="Size.Large" Color="Color.Primary" />
+    <MudText Typo="Typo.h5">ダッシュボード</MudText>
+</MudStack>
+<MudText Typo="Typo.body1" Class="mb-6" Color="Color.Secondary">
+    給与計算DXPro ブラウザ版へようこそ。左のメニューから各機能にアクセスできます。
+</MudText>
+
+@if (_status is not null)
+{
+    <MudGrid Spacing="3" Class="mb-6">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="pa-2" Style="height:100%;">
+                <MudCardContent>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">登録従業員</MudText>
+                    <MudText Typo="Typo.h4">@_status.従業員数<MudText Typo="Typo.body2" Inline="true"> 名</MudText></MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">内 退職者 @_status.退職者数 名</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="8">
+            <MudCard Elevation="2" Class="pa-2" Style="height:100%;">
+                <MudCardContent>
+                    @if (_payday is { 登録済: true })
+                    {
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Class="mb-1">
+                            <MudIcon Icon="@Icons.Material.Filled.Event" Color="Color.Primary" Size="Size.Large" />
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">処理年</MudText>
+                                <MudText Typo="Typo.h5">@_payday.処理年 年</MudText>
+                            </MudStack>
+                        </MudStack>
+                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mt-2">処理済の月</MudText>
+                        @if (_payday.処理済月.Count > 0)
+                        {
+                            <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1" Class="mt-1">
+                                @foreach (var m in _payday.処理済月)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">@m 月分</MudChip>
+                                }
+                            </MudStack>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">まだ処理済みの月はありません。</MudText>
+                        }
+                    }
+                    else
+                    {
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                            <MudIcon Icon="@Icons.Material.Filled.WarningAmber" Color="Color.Warning" Size="Size.Large" />
+                            <MudStack Spacing="1" AlignItems="AlignItems.Start">
+                                <MudText Typo="Typo.subtitle2">支給日情報が未設定です</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    給与・賞与計算を行うには、まず支給日を設定してください。
+                                </MudText>
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                           StartIcon="@Icons.Material.Filled.Event" Href="/setup/paydays">
+                                    支給日を設定する
+                                </MudButton>
+                            </MudStack>
+                        </MudStack>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <MudText Typo="Typo.h6" GutterBottom="true">ガイド</MudText>
+    <MudGrid Spacing="3" Class="mb-4">
+        @* はじめよう！ *@
+        @GuideCard("はじめよう！", "給与・賞与計算を始めるには、次の順序で処理してください。", new[]
+        {
+            new Step(Icons.Material.Filled.Business, "① 会社情報を登録する", "/setup/company"),
+            new Step(Icons.Material.Filled.Groups, "② 従業員を登録する", "/setup/employees"),
+            new Step(Icons.Material.Filled.Event, "③ 支払日を登録する", "/setup/paydays"),
+            new Step(Icons.Material.Filled.Calculate, "④ 給与・賞与計算を行う", "/payroll/process"),
+        })
+
+        @* 必ず設定しよう！（はじめよう！ の横に配置） *@
+        @GuideCard("必ず設定しよう！", "運用を始める前に、次の設定を必ず行ってください。", new[]
+        {
+            new Step(Icons.Material.Filled.Backup, "① バックアップの設定を行う", "/settings/backup"),
+            new Step(Icons.Material.Filled.AdminPanelSettings, "② セキュリティアカウントを設定する", "/settings/account"),
+            new Step(Icons.Material.Filled.Badge, "③ マイナンバーを登録しよう", "/setup/mynumber"),
+        })
+
+        @* 毎月の給与計算／賞与月の賞与計算／年末調整処理（横長1カード・タブ構成・各ステップにタイトル＋説明文） *@
+        <MudItem xs="12">
+            <MudPaper Elevation="1" Class="pt-2 px-2 pb-8">
+                <MudTabs Rounded="true" Border="false" ApplyEffectsToContainer="true" @bind-ActivePanelIndex="ProcessTab">
+                    <MudTabPanel Text="毎月の給与計算" Class="pt-3">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3 px-2">毎月の給与支給では、次の順序で処理します。</MudText>
+                        @StepColumns(new[]
+                        {
+                            new GuideStep(Icons.Material.Filled.Calculate, "① 給与計算を行う", "勤怠などを入力し、当月の給与を計算します。", "/payroll/process"),
+                            new GuideStep(Icons.Material.Filled.ReceiptLong, "② 支払明細書を印刷する", "給与明細書を印刷し、従業員へ配布します。", "/payroll/payslip"),
+                            new GuideStep(Icons.Material.Filled.TableChart, "③ 賃金台帳を印刷する", "月別の賃金台帳を印刷します。", "/payroll/ledger-month"),
+                            new GuideStep(Icons.Material.Filled.Description, "④ 関連帳票を印刷する", "振込一覧・金種表・給与封筒などを印刷します。", "/payroll/reports"),
+                        })
+                    </MudTabPanel>
+                    <MudTabPanel Text="賞与月の賞与計算" Class="pt-3">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3 px-2">賞与支給月は、次の順序で処理します。</MudText>
+                        @StepColumns(new[]
+                        {
+                            new GuideStep(Icons.Material.Filled.Redeem, "① 賞与計算を行う", "賞与額を入力し、賞与を計算します。", "/bonus/process"),
+                            new GuideStep(Icons.Material.Filled.ReceiptLong, "② 支払明細書を印刷する", "賞与明細書を印刷し、従業員へ配布します。", "/payroll/payslip"),
+                            new GuideStep(Icons.Material.Filled.TableChart, "③ 賃金台帳を印刷する", "賞与を含む賃金台帳を印刷します。", "/payroll/ledger-month"),
+                            new GuideStep(Icons.Material.Filled.Description, "④ 関連帳票を印刷する", "振込一覧・金種表などを印刷します。", "/payroll/reports"),
+                        })
+                    </MudTabPanel>
+                    <MudTabPanel Text="年末調整処理" Class="pt-3">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3 px-2">年末調整は、次の順序で処理します。</MudText>
+                        @StepColumns(new[]
+                        {
+                            new GuideStep(Icons.Material.Filled.Calculate, "① 年末調整計算を行う", "従業員ごとに年末調整を計算します。", "/year-end/employee"),
+                            new GuideStep(Icons.Material.Filled.Article, "② 源泉徴収票を印刷する", "従業員の源泉徴収票を印刷します。", "/year-end/withholding-slip"),
+                            new GuideStep(Icons.Material.Filled.Summarize, "③ 集計表を印刷する", "年末調整の集計表を印刷します。", "/year-end/summary"),
+                            new GuideStep(Icons.Material.Filled.Gavel, "④ 法定調書を作成する", "法定調書合計表などを作成します。", "/year-end/retirement"),
+                            new GuideStep(Icons.Material.Filled.Print, "⑤ 法定調書を印刷する", "作成した法定調書を印刷します。", "/year-end/legal-documents"),
+                        })
+                    </MudTabPanel>
+                </MudTabs>
+            </MudPaper>
+        </MudItem>
+
+        @* 入社時・退職時の操作（横長1カード・タブ構成・各ステップにタイトル＋説明文） *@
+        <MudItem xs="12">
+            <MudPaper Elevation="1" Class="pt-2 px-2 pb-8">
+                <MudTabs Rounded="true" Border="false" ApplyEffectsToContainer="true" @bind-ActivePanelIndex="OnboardTab">
+                    <MudTabPanel Text="入社時の操作" Class="pt-3">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3 px-2">従業員が入社したときは、次の順序で操作します。</MudText>
+                        @StepColumns(new[]
+                        {
+                            new GuideStep(Icons.Material.Filled.Groups, "① 従業員の登録", "従業員情報（氏名・住所・給与など）を新規に登録します。", "/setup/employees"),
+                            new GuideStep(Icons.Material.Filled.Print, "② 従業員台帳の印刷", "登録した従業員情報を台帳として印刷し、内容を確認します。", "/setup/ledger-print"),
+                            new GuideStep(Icons.Material.Filled.Calculate, "③ 配偶者・扶養者情報の登録", "年末調整計算画面で、配偶者・扶養親族の情報を登録します。", "/year-end/employee"),
+                            new GuideStep(Icons.Material.Filled.Badge, "④ マイナンバーの登録", "本人・配偶者・扶養親族のマイナンバーを登録します。", "/setup/mynumber"),
+                        })
+                    </MudTabPanel>
+                    <MudTabPanel Text="退職時の操作" Class="pt-3">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3 px-2">従業員が退職したときは、次の順序で操作します。</MudText>
+                        @StepColumns(new[]
+                        {
+                            new GuideStep(Icons.Material.Filled.EventBusy, "① 退職日の更新", "従業員情報で、対象者の退職日を登録します。", "/setup/employees"),
+                            new GuideStep(Icons.Material.Filled.Calculate, "② 年末調整を未済で更新", "年末調整計算画面で、年末調整の方法を「未済」に更新します。", "/year-end/employee"),
+                            new GuideStep(Icons.Material.Filled.Article, "③ 源泉徴収票の発行", "退職者の源泉徴収票を発行します。", "/year-end/withholding-slip"),
+                            new GuideStep(Icons.Material.Filled.Logout, "④ 退職所得の源泉徴収票", "退職所得がある場合に、退職所得の源泉徴収票を作成します。", "/year-end/retirement"),
+                        })
+                    </MudTabPanel>
+                </MudTabs>
+            </MudPaper>
+        </MudItem>
+
+    </MudGrid>
+
+    <MudText Typo="Typo.caption" Color="Color.Secondary">データ格納先: @Db.DataDir</MudText>
+}
+
+@code {
+    private DbStatus? _status;
+    private PayDayStatus? _payday;
+    // ダッシュボードの各タブ群も選択状態を回線単位で保持（別画面から戻っても直前のタブを維持）。
+    private int ProcessTab { get => TabState.Get("home-process"); set => TabState.Set("home-process", value); }
+    private int OnboardTab { get => TabState.Get("home-onboard"); set => TabState.Set("home-onboard", value); }
+
+    /// <summary>ガイドの1ステップ（アイコン・表示名・遷移先）。guide.xlsx の各項目に対応。</summary>
+    private sealed record Step(string Icon, string Label, string Href);
+
+    /// <summary>手順リスト（アイコン付きリンク）。カードとタブの両方で使う。</summary>
+    private RenderFragment StepList(Step[] steps) =>
+        @<MudList T="string" Dense="true">
+            @foreach (var s in steps)
+            {
+                <MudListItem T="string" Icon="@s.Icon" Href="@s.Href">@s.Label</MudListItem>
+            }
+         </MudList>;
+
+    /// <summary>ガイド1カード（見出し＋説明＋手順）。見出しは MudPaper の内側に置き、段の重なりを防ぐ。</summary>
+    private RenderFragment GuideCard(string title, string description, Step[] steps) =>
+        @<MudItem xs="12" md="6">
+            <MudPaper Elevation="1" Class="pa-4" Style="height:100%;">
+                <MudText Typo="Typo.h6" GutterBottom="true">@title</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">@description</MudText>
+                @StepList(steps)
+            </MudPaper>
+         </MudItem>;
+
+    /// <summary>入社時・退職時ガイドの1ステップ（アイコン・表示名・説明文・遷移先）。他カードの Step と同じ意匠に統一。</summary>
+    private sealed record GuideStep(string Icon, string Label, string Desc, string Href);
+
+    /// <summary>手順を横並びカラムで表示（各列にアイコン＋番号付きタイトル＋説明文）。色・意匠は他カードの手順リストに統一。</summary>
+    private RenderFragment StepColumns(GuideStep[] steps) =>
+        @<MudGrid Spacing="2">
+            @foreach (var s in steps)
+            {
+                <MudItem xs="12" sm="6" md="3">
+                    <div class="d-flex align-start px-2" style="gap:10px;">
+                        <MudIcon Icon="@s.Icon" Color="Color.Default" />
+                        <div>
+                            <MudLink Href="@s.Href" Color="Color.Inherit">@s.Label</MudLink>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1" Style="font-size:0.75rem;">@s.Desc</MudText>
+                        </div>
+                    </div>
+                </MudItem>
+            }
+         </MudGrid>;
+
+    protected override void OnInitialized()
+    {
+        _status = Db.GetStatus();
+        _payday = Db.LoadPayDayStatus();
+    }
+}

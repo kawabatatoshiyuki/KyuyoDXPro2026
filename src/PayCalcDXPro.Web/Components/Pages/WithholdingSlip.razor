@@ -1,0 +1,153 @@
+@page "/year-end/withholding-slip"
+@using PayCalcDXPro.Data.YearEnd
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<PageTitle>源泉徴収票／徴収簿の印刷｜給与計算DXPro</PageTitle>
+
+@* 固定ヘッダー：タイトル・帳票の選択条件・プレビュー／印刷を横1行に（関連帳票の印刷指示画面に合わせる）。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__title">
+            <MudIcon Icon="@Icons.Material.Filled.Article" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">源泉徴収票／徴収簿</MudText>
+        </div>
+        <div class="proc-header__controls">
+            @* 帳票の種類：ドロップダウン選択（関連帳票の印刷に合わせる） *@
+            <MudSelect T="string" Value="_帳票" ValueChanged="On帳票Changed" Label="帳票の種類"
+                       Variant="Variant.Outlined" Dense="true" Style="min-width:260px;">
+                <MudSelectItem T="string" Value="@Kind源泉">源泉徴収票</MudSelectItem>
+                <MudSelectItem T="string" Value="@Kind給報">給与支払報告書（個人明細）</MudSelectItem>
+                <MudSelectItem T="string" Value="@Kind徴収簿">源泉徴収簿</MudSelectItem>
+            </MudSelect>
+
+            @* 年度：全帳票共通（元号＋年） *@
+            <MudTextField @bind-Value="_元号" Label="元号" MaxLength="2" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Style="width:72px;" />
+            <MudTextField @bind-Value="_年" Label="年分" MaxLength="2" InputMode="InputMode.numeric"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Style="width:62px;" />
+
+            @* 種別：源泉徴収票・給与支払報告書のみ有効（源泉徴収簿は非活性） *@
+            <MudTextField @bind-Value="_種別" Label="種別" MaxLength="10" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Disabled="!種別使用" Style="width:150px;" />
+        </div>
+        <div class="proc-header__actions">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Preview"
+                       OnClick="プレビュー" Disabled="_selected.Count == 0">プレビュー</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Print"
+                       OnClick="印刷" Disabled="_selected.Count == 0">印刷（@_selected.Count 名）</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="2" Class="pa-2">
+    @* 左：印刷対象の従業員を複数選択 *@
+    <MudItem xs="12" md="5">
+        <MudPaper Elevation="1">
+            <MudTable Items="_targets" Hover="true" Dense="true" FixedHeader="true" Height="calc(100vh - 240px)"
+                      MultiSelection="true" SelectedItems="_selected" SelectedItemsChanged="OnSelectionChanged" T="YearEndTarget">
+                <HeaderContent>
+                    <MudTh>No</MudTh>
+                    <MudTh>氏名</MudTh>
+                    <MudTh>就退区分</MudTh>
+                    <MudTh Style="width:1%;"></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="No">@context.No</MudTd>
+                    <MudTd DataLabel="氏名">@context.氏名</MudTd>
+                    <MudTd DataLabel="就退区分">@context.就退区分名</MudTd>
+                    <MudTd>
+                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.Print"
+                                   OnClick="@(() => 印刷1(context.Number))">印刷</MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+
+    @* 右：選択した従業員の帳票プレビュー（他の印刷指示画面と同様） *@
+    <MudItem xs="12" md="7">
+        @if (string.IsNullOrEmpty(_previewUrl))
+        {
+            <MudPaper Elevation="1" Class="pa-6">
+                <MudText Class="pa-3" Color="Color.Secondary">
+                    従業員を選択して「プレビュー」を押すと、@(_帳票)を右側に表示します。
+                </MudText>
+            </MudPaper>
+        }
+        else
+        {
+            <iframe src="@_previewUrl" style="width:100%;height:calc(100vh - 240px);border:1px solid var(--mud-palette-divider);border-radius:6px;"></iframe>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private const string Kind源泉 = "源泉徴収票";
+    private const string Kind給報 = "給与支払報告書";
+    private const string Kind徴収簿 = "源泉徴収簿";
+
+    private IReadOnlyList<YearEndTarget> _targets = Array.Empty<YearEndTarget>();
+    private HashSet<YearEndTarget> _selected = new();
+    private string _帳票 = Kind源泉;
+    private string _種別 = "給料・賞与";
+    private string _元号 = "令和";
+    private string _年 = "";
+    private string _previewUrl = "";
+
+    // 種別は源泉徴収票・給与支払報告書でのみ使用（源泉徴収簿は非活性・現行 txtsyubetu.Enabled）。
+    private bool 種別使用 => _帳票 is Kind源泉 or Kind給報;
+
+    // 帳票種類・選択が変わるとプレビューは古くなるので消す（他の印刷指示画面と同じ挙動）。
+    private void On帳票Changed(string v) { _帳票 = v; _previewUrl = ""; }
+    private void OnSelectionChanged(HashSet<YearEndTarget> items) { _selected = items; _previewUrl = ""; }
+
+    protected override void OnInitialized()
+    {
+        _targets = Db.LoadYearEndTargets();
+        int y = Db.LoadPayDayStatus().処理年;
+        _年 = y > 2018 ? (y - 2018).ToString() : "";
+    }
+
+    // カンマ区切りの Number 一覧で帳票URLを構築（複数名でも1つの複数ページPDF）。
+    private string? UrlFor(string numbersCsv) => _帳票 switch
+    {
+        Kind源泉 => $"/year-end/withholding-slip/pdf?numbers={numbersCsv}"
+                    + $"&種別={Uri.EscapeDataString(_種別)}&元号={Uri.EscapeDataString(_元号)}&年={Uri.EscapeDataString(_年)}",
+        Kind給報 => $"/year-end/pay-report/pdf?numbers={numbersCsv}"
+                    + $"&種別={Uri.EscapeDataString(_種別)}&年={Uri.EscapeDataString(_年)}",
+        Kind徴収簿 => $"/year-end/withholding-ledger/pdf?numbers={numbersCsv}"
+                    + $"&元号={Uri.EscapeDataString(_元号)}&年={Uri.EscapeDataString(_年)}",
+        _ => null,
+    };
+
+    // 帳票の移植状況（源泉徴収簿も移植済み）。
+    private bool 実装済み => _帳票 is Kind源泉 or Kind給報 or Kind徴収簿;
+
+    // 選択中の従業員の帳票を右ペインにプレビュー表示（複数名でも1つの複数ページPDF）。
+    private void プレビュー()
+    {
+        if (_selected.Count == 0) { Snackbar.Add("従業員を選択してください。", Severity.Warning); return; }
+        if (!実装済み) { Snackbar.Add($"{_帳票}は現在移植中です。しばらくお待ちください。", Severity.Info); return; }
+        var csv = string.Join(",", _selected.OrderBy(x => x.Number).Select(x => x.Number));
+        _previewUrl = UrlFor(csv) ?? "";
+    }
+
+    private async Task 印刷1(int number)
+    {
+        if (!実装済み) { Snackbar.Add($"{_帳票}は現在移植中です。しばらくお待ちください。", Severity.Info); return; }
+        var url = UrlFor(number.ToString());
+        if (url is not null) await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    private async Task 印刷()
+    {
+        if (_selected.Count == 0) { Snackbar.Add("従業員を選択してください。", Severity.Warning); return; }
+        if (!実装済み) { Snackbar.Add($"{_帳票}は現在移植中です。しばらくお待ちください。", Severity.Info); return; }
+        // 選択者全員を1つの複数ページPDFにまとめて新規タブで開く（ポップアップブロック回避）。
+        var csv = string.Join(",", _selected.OrderBy(x => x.Number).Select(x => x.Number));
+        var url = UrlFor(csv);
+        if (url is not null) await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+}

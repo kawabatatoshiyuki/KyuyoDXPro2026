@@ -1,0 +1,11 @@
+C:\PayCalcDXPro\src\PayCalcDXPro.Domain\bin\Release\net8.0\PayCalcDXPro.Domain.deps.json
+C:\PayCalcDXPro\src\PayCalcDXPro.Domain\bin\Release\net8.0\PayCalcDXPro.Domain.dll
+C:\PayCalcDXPro\src\PayCalcDXPro.Domain\bin\Release\net8.0\PayCalcDXPro.Domain.pdb
+C:\PayCalcDXPro\src\PayCalcDXPro.Domain\obj\Release\net8.0\PayCalcDXPro.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\PayCalcDXPro\src\PayCalcDXPro.Domain\obj\Release\net8.0\PayCalcDXPro.Domain.AssemblyInfoInputs.cache
+C:\PayCalcDXPro\src\PayCalcDXPro.Domain\obj\Release\net8.0\PayCalcDXPro.Domain.AssemblyInfo.cs
+C:\PayCalcDXPro\src\PayCalcDXPro.Domain\obj\Release\net8.0\PayCalcDXPro.Domain.csproj.CoreCompileInputs.cache
+C:\PayCalcDXPro\src\PayCalcDXPro.Domain\obj\Release\net8.0\PayCalcDXPro.Domain.dll
+C:\PayCalcDXPro\src\PayCalcDXPro.Domain\obj\Release\net8.0\refint\PayCalcDXPro.Domain.dll
+C:\PayCalcDXPro\src\PayCalcDXPro.Domain\obj\Release\net8.0\PayCalcDXPro.Domain.pdb
+C:\PayCalcDXPro\src\PayCalcDXPro.Domain\obj\Release\net8.0\ref\PayCalcDXPro.Domain.dll

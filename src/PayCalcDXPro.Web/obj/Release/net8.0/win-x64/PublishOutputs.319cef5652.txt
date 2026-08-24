@@ -1,0 +1,10 @@
+C:\PayCalcDXPro\deploy\standalone\package\app\appsettings.Development.json
+C:\PayCalcDXPro\deploy\standalone\package\app\appsettings.json
+C:\PayCalcDXPro\deploy\standalone\package\app\appsettings.Production.json
+C:\PayCalcDXPro\deploy\standalone\package\app\PayCalcDXPro.Web.pdb
+C:\PayCalcDXPro\deploy\standalone\package\app\LatoFont\OFL.txt
+C:\PayCalcDXPro\deploy\standalone\package\app\PayCalcDXPro.Domain.pdb
+C:\PayCalcDXPro\deploy\standalone\package\app\PayCalcDXPro.Data.pdb
+C:\PayCalcDXPro\deploy\standalone\package\app\PayCalcDXPro.Reporting.pdb
+C:\PayCalcDXPro\deploy\standalone\package\app\PayCalcDXPro.Security.pdb
+C:\PayCalcDXPro\deploy\standalone\package\app\PayCalcDXPro.Web.exe

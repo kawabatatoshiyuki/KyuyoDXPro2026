@@ -1,0 +1,147 @@
+@namespace PayCalcDXPro.Web.Components.Shared
+
+@* 年末調整などの日付入力。2通りの入力に対応：
+     ①テキスト入力  ・西暦8桁 YYYYMMDD（例 20240401） ・和暦7桁 元号+YYMMDD（M/T/S/H/R。例 R060401）
+       正しければ yyyy/MM/dd へ整形して表示・保存。不正値はその場でクリアしフォーカスを戻す（エラーは出さない）。
+     ②カレンダー入力  右のカレンダーアイコンから日付を選択（テキスト欄と同じ yyyy/MM/dd で反映）。 *@
+<span class="date-input" style="display:inline-flex; align-items:center;">
+    @* 入力方法はマウスオンのツールチップ（チップヘルプ）で表示。プレースホルダーは簡潔に。 *@
+    <MudTooltip Text="@Help" Placement="Placement.Top" Arrow="true" Delay="250">
+        @* カレンダーアイコンはテキスト欄内（Adornment）に内包し、全体を Width 内に収める（外付けだとアイコンが次項目にかぶるため）。 *@
+        <MudTextField @ref="_field" @key="_key" T="string" Value="@Value" ValueChanged="OnChanged"
+                      Variant="Variant.Text" Margin="Margin.Dense" Style="@($"width:{Width};")"
+                      Placeholder="@Placeholder" Immediate="false"
+                      Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.CalendarMonth"
+                      OnAdornmentClick="@(() => _calOpen = !_calOpen)" AdornmentAriaLabel="カレンダーから選択" />
+    </MudTooltip>
+    <MudPopover Open="_calOpen" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight"
+                Paper="true" Class="pa-1" Style="z-index:2100;">
+        <MudDatePicker PickerVariant="PickerVariant.Static" Date="@CurrentDate" DateChanged="OnCalendarPicked"
+                       Culture="_ja" ShowToolbar="true" />
+    </MudPopover>
+    <MudOverlay Visible="_calOpen" OnClick="@(() => _calOpen = false)" AutoClose="true"
+                LockScroll="false" Style="z-index:2000; background:transparent;" />
+</span>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    [Parameter] public string Width { get; set; } = "160px";
+    [Parameter] public string Placeholder { get; set; } = "例 20240401";
+    // マウスオンで表示する入力方法（チップヘルプ）。
+    [Parameter] public string Help { get; set; }
+        = "西暦8桁（例 20240401）または和暦7桁（元号＋YYMMDD 例 R060401）で入力できます。右のカレンダーからも選択できます。";
+
+    private static readonly System.Globalization.CultureInfo _ja = System.Globalization.CultureInfo.GetCultureInfo("ja-JP");
+
+    private MudTextField<string>? _field;
+    private int _key;          // 不正時に採番してテキスト欄を作り直し、確実に空へ戻す。
+    private bool _refocus;     // 再描画後にフォーカスを戻すフラグ。
+    private bool _calOpen;     // カレンダーの開閉。
+
+    // テキスト欄の値（yyyy/MM/dd）をカレンダーの選択日に変換して初期表示に使う。
+    private DateTime? CurrentDate =>
+        DateTime.TryParse(Value, System.Globalization.CultureInfo.InvariantCulture,
+                          System.Globalization.DateTimeStyles.None, out var d) ? d : null;
+
+    private async Task OnChanged(string? input)
+    {
+        var normalized = NormalizeDate(input);
+        if (normalized is null)
+        {
+            // 不正：表示テキストをクリア（@key を更新して作り直す）し、フォーカスを戻す。
+            _key++;
+            _refocus = true;
+            if (!string.IsNullOrEmpty(Value))
+            {
+                Value = "";
+                await ValueChanged.InvokeAsync("");
+            }
+            StateHasChanged();
+        }
+        else if (normalized != Value)
+        {
+            Value = normalized;
+            await ValueChanged.InvokeAsync(normalized);
+        }
+    }
+
+    // カレンダーで日付を選んだとき：yyyy/MM/dd で反映し、テキスト欄を作り直して表示を更新、カレンダーを閉じる。
+    private async Task OnCalendarPicked(DateTime? date)
+    {
+        _key++;
+        _calOpen = false;
+        string v = date?.ToString("yyyy/MM/dd") ?? "";
+        if (v != Value)
+        {
+            Value = v;
+            await ValueChanged.InvokeAsync(v);
+        }
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_refocus && _field is not null)
+        {
+            _refocus = false;
+            await _field.FocusAsync();
+        }
+    }
+
+    /// <summary>
+    /// 西暦8桁(YYYYMMDD)／和暦7桁(元号+YYMMDD)を yyyy/MM/dd へ整形する。
+    /// 空は "" を返す（許容）。形式不一致・実在しない日付は null。既に yyyy/MM/dd 済みの値もそのまま許容する。
+    /// </summary>
+    public static string? NormalizeDate(string? input)
+    {
+        string s = (input ?? "").Trim();
+        if (s.Length == 0) return "";
+
+        int year, month, day;
+
+        if (s.Length == 8 && s.All(char.IsDigit))
+        {
+            // 西暦8桁 YYYYMMDD
+            year = int.Parse(s.Substring(0, 4));
+            month = int.Parse(s.Substring(4, 2));
+            day = int.Parse(s.Substring(6, 2));
+        }
+        else if (s.Length == 7 && char.IsLetter(s[0]) && s.Substring(1).All(char.IsDigit))
+        {
+            // 和暦7桁 元号+YYMMDD
+            int baseYear = char.ToUpperInvariant(s[0]) switch
+            {
+                'M' => 1867, // 明治（明治1年=1868）
+                'T' => 1911, // 大正（大正1年=1912）
+                'S' => 1925, // 昭和（昭和1年=1926）
+                'H' => 1988, // 平成（平成1年=1989）
+                'R' => 2018, // 令和（令和1年=2019）
+                _ => -1,
+            };
+            if (baseYear < 0) return null;
+            year = baseYear + int.Parse(s.Substring(1, 2));
+            month = int.Parse(s.Substring(3, 2));
+            day = int.Parse(s.Substring(5, 2));
+        }
+        else if (DateTime.TryParseExact(s, "yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture,
+                                        System.Globalization.DateTimeStyles.None, out var already))
+        {
+            // 既に整形済み（カレンダー由来・再表示）の値はそのまま許容。
+            return already.ToString("yyyy/MM/dd");
+        }
+        else
+        {
+            return null;
+        }
+
+        try
+        {
+            return new DateTime(year, month, day).ToString("yyyy/MM/dd");
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
+}

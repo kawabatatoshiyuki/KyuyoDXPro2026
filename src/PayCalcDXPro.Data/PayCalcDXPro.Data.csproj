@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\PayCalcDXPro.Domain\PayCalcDXPro.Domain.csproj" />
+    <ProjectReference Include="..\PayCalcDXPro.Security\PayCalcDXPro.Security.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 年末調整 法定マスタのシード（現行 PayCalc2026.db から自動生成。LegacyInspector が再生成）。 -->
+    <EmbeddedResource Include="YearEnd\YearEndMaster.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SQLCipher（保存時暗号化）対応のため Core + e_sqlcipher バンドルを使用。
+         鍵未設定なら通常のSQLiteとして平文DBも読めるため、既存の復号後DB読込とも両立する。 -->
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.9" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" Version="2.1.10" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

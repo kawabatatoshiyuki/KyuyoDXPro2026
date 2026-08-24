@@ -1,0 +1,244 @@
+@page "/settings/insurance-rates"
+@using PayCalcDXPro.Data.Rate
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>保険料率｜給与計算DXPro</PageTitle>
+
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Percent" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">保険料率</MudText>
+        </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="@(_loading || _saving)">登録する</MudButton>
+    </MudStack>
+</MudPaper>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+}
+else
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mt-2 mb-3">
+        健康保険・介護保険の料率は<b>都道府県毎に異なります</b>。最新の料率は
+        <MudLink Href="https://www.kyoukaikenpo.or.jp/" Target="_blank" Typo="Typo.body2">協会けんぽのサイト</MudLink>
+        でご確認ください。料率を入力後、各「○○計算」ボタンで保険料額表へ反映します。
+    </MudAlert>
+
+    <!-- 料率入力 -->
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.Percent" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">料率（％）</MudText>
+            </MudStack>
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.CallSplit"
+                       OnClick="折半値代入">折半値を被保険者負担分へ代入</MudButton>
+        </MudStack>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">上段＝一般料率、下段＝被保険者負担分</MudText>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            @foreach (var c in RateCols)
+            {
+                <div style="flex:1 1 150px; min-width:140px;">
+                    <MudText Typo="Typo.subtitle2" Align="Align.Center" Class="mb-1">@c.Name</MudText>
+                    <MudNumericField T="double?" Value="@c.Get一般()" ValueChanged="@((double? v) => c.Set一般(v))"
+                                     Label="一般料率" Variant="Variant.Outlined" Min="0" Format="@c.Fmt一般"
+                                     AdornmentText="%" Adornment="Adornment.End" Margin="Margin.Dense" Class="mb-2" />
+                    <MudNumericField T="double?" Value="@c.Get本人()" ValueChanged="@((double? v) => c.Set本人(v))"
+                                     Label="被保険者負担分" Variant="Variant.Outlined" Min="0" Format="@c.Fmt本人"
+                                     AdornmentText="%" Adornment="Adornment.End" Margin="Margin.Dense" />
+                </div>
+            }
+        </div>
+
+        <MudDivider Class="my-4" />
+        <MudText Typo="Typo.subtitle2" Class="mb-2">雇用保険料率</MudText>
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="6" md="3">
+                <MudNumericField @bind-Value="R.雇用保険一般" Label="一般の事業" Variant="Variant.Outlined" Min="0" Format="0.0" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudNumericField @bind-Value="R.雇用保険一般以外" Label="一般以外（建設等）" Variant="Variant.Outlined" Min="0" Format="0.0" />
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <!-- 保険料額表 -->
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.TableChart" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">保険料額表（被保険者負担額）</MudText>
+            </MudStack>
+            <MudStack Row="true" Spacing="1">
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => 計算_標準比例("健康保険"))">健康保険計算</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => 計算_標準比例("介護保険"))">介護保険計算</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => 計算_標準比例("子育支援"))">子育支援計算</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => 計算_厚年系("厚生年金"))">厚生年金計算</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => 計算_厚年系("厚生年金基金"))">厚生年金基金計算</MudButton>
+            </MudStack>
+        </MudStack>
+
+        @if (_bundle.額表.Count == 0)
+        {
+            <MudText Color="Color.Secondary">保険料額表のデータがありません（移行データに含まれます）。</MudText>
+        }
+        else
+        {
+            <div style="overflow-x:auto;">
+                <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="min-width:1040px;">
+                    <thead>
+                        <tr>
+                            <th colspan="2" style="text-align:center;">等級</th>
+                            <th rowspan="2" style="text-align:center; vertical-align:bottom;">月額</th>
+                            <th colspan="2" style="text-align:center;">報酬月額</th>
+                            <th rowspan="2" style="vertical-align:bottom;">健康保険</th>
+                            <th rowspan="2" style="vertical-align:bottom;">介護保険</th>
+                            <th rowspan="2" style="vertical-align:bottom;">厚生年金</th>
+                            <th rowspan="2" style="vertical-align:bottom;">子育支援</th>
+                            <th rowspan="2" style="vertical-align:bottom;">厚生年金基金</th>
+                        </tr>
+                        <tr>
+                            <th style="text-align:center;">健保</th>
+                            <th style="text-align:center;">厚生</th>
+                            <th style="text-align:center;">以上</th>
+                            <th style="text-align:center;">未満</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _bundle.額表)
+                        {
+                            <tr>
+                                <td><MudNumericField @bind-Value="row.等級短期" T="int?" Variant="Variant.Text" Margin="Margin.Dense" Format="0" HideSpinButtons="true" Style="width:56px;" /></td>
+                                <td><MudNumericField @bind-Value="row.等級長期" T="int?" Variant="Variant.Text" Margin="Margin.Dense" Format="0" HideSpinButtons="true" Style="width:56px;" /></td>
+                                <td><MudNumericField @bind-Value="row.標準報酬月額短期" T="int?" Variant="Variant.Text" Margin="Margin.Dense" Format="#,##0" HideSpinButtons="true" Style="width:96px;" /></td>
+                                <td><MudNumericField @bind-Value="row.報酬月額自" T="int?" Variant="Variant.Text" Margin="Margin.Dense" Format="#,##0" HideSpinButtons="true" Style="width:96px;" /></td>
+                                <td><MudNumericField @bind-Value="row.報酬月額至" T="int?" Variant="Variant.Text" Margin="Margin.Dense" Format="#,##0" HideSpinButtons="true" Style="width:96px;" /></td>
+                                <td><MudNumericField @bind-Value="row.健康保険" Variant="Variant.Text" Margin="Margin.Dense" Format="0.##" HideSpinButtons="true" /></td>
+                                <td><MudNumericField @bind-Value="row.介護保険" Variant="Variant.Text" Margin="Margin.Dense" Format="0.##" HideSpinButtons="true" /></td>
+                                <td><MudNumericField @bind-Value="row.厚生年金" Variant="Variant.Text" Margin="Margin.Dense" Format="0.##" HideSpinButtons="true" /></td>
+                                <td><MudNumericField @bind-Value="row.子育支援" Variant="Variant.Text" Margin="Margin.Dense" Format="0.##" HideSpinButtons="true" /></td>
+                                <td><MudNumericField @bind-Value="row.厚生年金基金" Variant="Variant.Text" Margin="Margin.Dense" Format="0.##" HideSpinButtons="true" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                健保＝健康保険等級、厚生＝厚生年金等級、月額＝標準報酬月額、以上／未満＝報酬月額の範囲。全項目を手修正できます。各保険料額は「○○計算」ボタンで（標準報酬月額 ÷ 100 × 被保険者負担分）から一括計算もできます。
+            </MudText>
+        }
+    </MudPaper>
+}
+
+@code {
+    private RateBundle _bundle = new();
+    private RateSettings R => _bundle.料率;
+    private bool _loading = true;
+    private bool _saving;
+
+    // 料率（％）を横一列に表示するための列定義（上段＝一般料率／下段＝被保険者負担分）。
+    private sealed record RateCol(string Name,
+        Func<double?> Get一般, Action<double?> Set一般,
+        Func<double?> Get本人, Action<double?> Set本人,
+        string Fmt一般, string Fmt本人);
+
+    private RateCol[] RateCols => new[]
+    {
+        new RateCol("健康保険", () => R.健康保険一般, v => R.健康保険一般 = v, () => R.健康保険本人, v => R.健康保険本人 = v, "0.00", "0.000"),
+        new RateCol("介護保険", () => R.介護保険一般, v => R.介護保険一般 = v, () => R.介護保険本人, v => R.介護保険本人 = v, "0.00", "0.000"),
+        new RateCol("厚生年金", () => R.厚生年金一般, v => R.厚生年金一般 = v, () => R.厚生年金本人, v => R.厚生年金本人 = v, "0.000", "0.0000"),
+        new RateCol("子育支援", () => R.子育支援一般, v => R.子育支援一般 = v, () => R.子育支援本人, v => R.子育支援本人 = v, "0.00", "0.000"),
+        new RateCol("厚生年金基金", () => R.厚生年金基金一般, v => R.厚生年金基金一般 = v, () => R.厚生年金基金本人, v => R.厚生年金基金本人 = v, "0.000", "0.0000"),
+    };
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try { _bundle = await Task.Run(() => Db.LoadRates()); }
+        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private void 折半値代入()
+    {
+        R.健康保険本人 = Half(R.健康保険一般);
+        R.厚生年金本人 = Half(R.厚生年金一般);
+        R.介護保険本人 = Half(R.介護保険一般);
+        R.子育支援本人 = Half(R.子育支援一般);
+        R.厚生年金基金本人 = Half(R.厚生年金基金一般);
+        Snackbar.Add("一般料率の1/2を被保険者負担分に代入しました。", Severity.Info);
+    }
+
+    private static double? Half(double? v) => v.HasValue ? v.Value / 2 : 0;
+
+    // 健康保険・介護保険・子育支援：全行で 標準報酬月額÷100×被保険者負担分。
+    private void 計算_標準比例(string kind)
+    {
+        double? rate = kind switch
+        {
+            "健康保険" => R.健康保険本人,
+            "介護保険" => R.介護保険本人,
+            "子育支援" => R.子育支援本人,
+            _ => null,
+        };
+        foreach (var row in _bundle.額表)
+        {
+            double? val = (rate is > 0 && row.標準報酬月額短期 is > 0)
+                ? row.標準報酬月額短期!.Value / 100.0 * rate!.Value : null;
+            Set(row, kind, val);
+        }
+    }
+
+    // 厚生年金・厚生年金基金：等級_長期が設定された範囲の外は上下限でクランプ。
+    private void 計算_厚年系(string kind)
+    {
+        double? rate = kind == "厚生年金" ? R.厚生年金本人 : R.厚生年金基金本人;
+        if (rate is not > 0)
+        {
+            foreach (var row in _bundle.額表) Set(row, kind, null);
+            return;
+        }
+        int start = _bundle.額表.FindIndex(r => r.等級長期.HasValue);
+        int end = _bundle.額表.FindLastIndex(r => r.等級長期.HasValue);
+        if (start < 0) { foreach (var row in _bundle.額表) Set(row, kind, null); return; }
+
+        double Calc(int i) => (_bundle.額表[i].標準報酬月額短期 ?? 0) / 100.0 * rate!.Value;
+        double mini = Calc(start), max = Calc(end);
+        for (int i = 0; i < _bundle.額表.Count; i++)
+        {
+            double v = i < start ? mini : i > end ? max : Calc(i);
+            Set(_bundle.額表[i], kind, v);
+        }
+    }
+
+    private static void Set(RateTableRow row, string kind, double? v)
+    {
+        switch (kind)
+        {
+            case "健康保険": row.健康保険 = v; break;
+            case "介護保険": row.介護保険 = v; break;
+            case "子育支援": row.子育支援 = v; break;
+            case "厚生年金": row.厚生年金 = v; break;
+            case "厚生年金基金": row.厚生年金基金 = v; break;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var toSave = _bundle;
+            await Task.Run(() => Db.SaveRates(toSave));
+            Snackbar.Add("保険料率を登録しました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"登録に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _saving = false; }
+    }
+}

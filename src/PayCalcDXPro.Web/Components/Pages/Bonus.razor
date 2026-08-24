@@ -1,0 +1,299 @@
+@page "/bonus/process"
+@using PayCalcDXPro.Data.Employee
+@using PayCalcDXPro.Data.Bonus
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>賞与計算｜給与計算DXPro</PageTitle>
+
+@* 支給・控除の明細風の行（@<...> は markup 領域でのみ宣言できる）。 *@
+@{
+    // 入力行（ラベル左／金額右・固定幅で円ぞろえ）。金額変更時は合計のみ即時再計算（現行 kyuyoCalc 相当）。
+    RenderFragment MoneyRow(string label, Func<int?> get, Action<int?> set) =>
+        @<div class="pay-row">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <MudNumericField T="int?" Value="get()" ValueChanged="@((int? v) => { set(v); OnAmountChanged(); })" Variant="Variant.Text"
+                                 Format="#,##0" HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric"
+                                 Class="pay-num" />
+                <span class="pay-yen">円</span>
+            </span>
+         </div>;
+
+    // 計算結果行（プレーンテキスト・読み取り）。
+    RenderFragment ReadRow(string label, int? value) =>
+        @<div class="pay-row pay-row--read">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <span class="pay-amount-text">@(value?.ToString("#,##0"))</span>
+                <span class="pay-yen">円</span>
+            </span>
+         </div>;
+
+    // 合計行（総支給額・総控除額。強調）。
+    RenderFragment TotalRow(string label, int? value) =>
+        @<div class="pay-row pay-row--total">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <span class="pay-amount-text">@(value?.ToString("#,##0"))</span>
+                <span class="pay-yen">円</span>
+            </span>
+         </div>;
+
+    // 集計カード用。
+    RenderFragment Read(string label, int? value) =>
+        @<MudNumericField T="int?" Value="value" ReadOnly="true" Label="@label" Variant="Variant.Outlined"
+                          Format="#,##0" Adornment="Adornment.End" AdornmentText="円" Style="text-align:right;" />;
+}
+
+@* 固定ヘッダー：賞与回選択＋従業員＋計算・保存。現行 F_賞与処理 を踏襲。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.Redeem" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">賞与計算</MudText>
+            </div>
+            <div class="proc-header__controls">
+                <MudSelect T="int" Value="_回" ValueChanged="On回Changed" Label="賞与回"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:200px;">
+                    @foreach (var r in _meta.賞与回候補)
+                    {
+                        int v = r.回;
+                        <MudSelectItem T="int" Value="v">@r.ラベル</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="int" Value="_selNumber" ValueChanged="OnEmployeeChanged" Label="従業員"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:240px;"
+                           Disabled="@(_meta.従業員.Count == 0)" ToStringFunc="EmployeeLabel">
+                    @foreach (var it in _meta.従業員)
+                    {
+                        <MudSelectItem T="int" Value="it.Number">
+                            @it.氏名（No.@it.No）@(it.退職 ? "［退職］" : "")@(_saved.Contains(it.Number) ? " ✅" : "")
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+                @if (_meta.支給月 is int sm)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Style="white-space:nowrap;">
+                        @(_meta.支給年)年 @(sm)月@(_meta.支給日 is int sd ? $"{sd}日" : "") 支給
+                    </MudText>
+                }
+            </div>
+        </div>
+        <div class="proc-header__actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Calculate"
+                       OnClick="Calc" Disabled="@(_entry is null || _busy)">計算</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="Save" Disabled="@(_entry is null || _busy)">保存</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="3">
+    <MudItem xs="12">
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-2" />
+        }
+        else if (_meta.従業員.Count == 0)
+        {
+            <MudPaper Elevation="1" Class="pa-4">
+                <MudText Class="pa-3" Color="Color.Secondary">従業員が登録されていません。</MudText>
+            </MudPaper>
+        }
+        else if (_entry is null)
+        {
+            <MudPaper Elevation="1" Class="pa-4">
+                <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Class="py-12">
+                    <MudIcon Icon="@Icons.Material.Filled.Redeem" Size="Size.Large" Color="Color.Secondary" />
+                    <MudText Color="Color.Secondary">上部のドロップダウンから従業員を選んでください。</MudText>
+                </MudStack>
+            </MudPaper>
+        }
+        else
+        {
+            <!-- 支給・控除（項目はマスタ（支給控除項目設定）の賞与手当/賞与控除に同期。それぞれ列形式） -->
+            <MudGrid Spacing="3">
+                <!-- 支給 列 -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
+                        <div class="proc-section-title">支　給</div>
+                        <div class="pay-list">
+                            @MoneyRow(L("賞与", "賞与"), () => _entry!.賞与, v => _entry!.賞与 = v)
+                            @for (int i = 0; i < 16; i++)
+                            {
+                                int idx = i;
+                                if (idx < _meta.手当ラベル.Count && !string.IsNullOrWhiteSpace(_meta.手当ラベル[idx]))
+                                {
+                                    @MoneyRow(_meta.手当ラベル[idx], () => _entry!.賞与支給[idx], v => _entry!.賞与支給[idx] = v)
+                                }
+                            }
+                            @TotalRow(L("賞与総支給額", "総支給額"), _entry.総支給額)
+                        </div>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- 控除 列 -->
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
+                        <div class="proc-section-title">控　除</div>
+                        <div class="pay-list">
+                            @MoneyRow(L("賞与健康保険", "健康保険"), () => _entry!.健康保険, v => _entry!.健康保険 = v)
+                            @MoneyRow(L("賞与介護保険", "介護保険"), () => _entry!.介護保険, v => _entry!.介護保険 = v)
+                            @MoneyRow(L("賞与子育支援", "子育支援"), () => _entry!.子育支援, v => _entry!.子育支援 = v)
+                            @MoneyRow(L("賞与厚生年金", "厚生年金"), () => _entry!.厚生年金, v => _entry!.厚生年金 = v)
+                            @MoneyRow(L("賞与年金基金", "年金基金"), () => _entry!.年金基金, v => _entry!.年金基金 = v)
+                            @MoneyRow(L("賞与小規模共済", "小規模共済"), () => _entry!.小規模共済, v => _entry!.小規模共済 = v)
+                            @MoneyRow(L("賞与雇用保険", "雇用保険"), () => _entry!.雇用保険, v => _entry!.雇用保険 = v)
+                            @ReadRow(L("賞与社会保険合計", "社会保険合計"), _entry.社会保険合計)
+                            @ReadRow(L("賞与課税対象額", "課税対象額"), _entry.課税対象額)
+                            @MoneyRow(L("賞与所得税", "所得税"), () => _entry!.所得税, v => _entry!.所得税 = v)
+                            @for (int i = 0; i < 9; i++)
+                            {
+                                int idx = i;
+                                if (idx < _meta.控除ラベル.Count && !string.IsNullOrWhiteSpace(_meta.控除ラベル[idx]))
+                                {
+                                    @MoneyRow(_meta.控除ラベル[idx], () => _entry!.控除項目[idx], v => _entry!.控除項目[idx] = v)
+                                }
+                            }
+                            @MoneyRow("年末調整還付金", () => _entry!.還付金額, v => _entry!.還付金額 = v)
+                            @MoneyRow("年末調整徴収金", () => _entry!.徴収金額, v => _entry!.徴収金額 = v)
+                            @TotalRow(L("賞与総控除額", "総控除額"), _entry.総控除額)
+                        </div>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <!-- 集計 -->
+            <MudPaper Elevation="2" Class="pa-3 mb-3">
+                <MudGrid Spacing="2">
+                    <MudItem xs="4">@Read("総支給額", _entry.総支給額)</MudItem>
+                    <MudItem xs="4">@Read("総控除額", _entry.総控除額)</MudItem>
+                    <MudItem xs="4">
+                        <MudNumericField T="int?" Value="_entry.差引支給額" ReadOnly="true" Label="差引支給額"
+                                         Variant="Variant.Outlined" Format="#,##0" Adornment="Adornment.End" AdornmentText="円"
+                                         Style="text-align:right;" Class="font-weight-bold" />
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- 備考 -->
+            <MudPaper Elevation="1" Class="pa-3 mb-3">
+                <MudTextField @bind-Value="_entry.備考" Label="賞与明細備考欄（※全角45文字程度まで）"
+                              Variant="Variant.Outlined" Lines="2" MaxLength="90" />
+            </MudPaper>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private int _回 = 1;
+    private BonusMeta _meta = new(Array.Empty<EmployeeListItem>(), Array.Empty<string>(), Array.Empty<string>(), DateTime.Now.Year, null, null, Array.Empty<BonusRoundOption>(), new Dictionary<string, string>(), Array.Empty<int>());
+
+    /// <summary>当該回で計算・保存済みの従業員Number（一覧の「計算済」マーク用）。</summary>
+    private HashSet<int> _saved = new();
+
+    /// <summary>固定項目のラベルをマスタ（支給控除項目設定）から引く。未設定なら既定名。</summary>
+    private string L(string key, string def)
+        => _meta.固定ラベル.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : def;
+
+    /// <summary>従業員セレクトの選択中表示（閉じた状態）。計算済マークは付けず氏名のみ＝回切替でマークが残らない。</summary>
+    private string EmployeeLabel(int number)
+    {
+        var it = _meta.従業員.FirstOrDefault(x => x.Number == number);
+        return it is null ? "" : $"{it.氏名}（No.{it.No}）{(it.退職 ? "［退職］" : "")}";
+    }
+
+    private EmployeeListItem? _sel;
+    private int _selNumber;
+    private BonusEntry? _entry;
+    private bool _loading = true;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 支給日情報を見て、本日が支給日を過ぎていれば次の回（未到来の最初の回）を初期表示する。
+        _回 = await Task.Run(() => Db.DefaultBonusRound());
+        await ReloadMeta();
+        await EnsureSelectionAsync();
+    }
+
+    private async Task ReloadMeta()
+    {
+        _loading = true;
+        try
+        {
+            _meta = await Task.Run(() => Db.LoadBonusMeta(_回));
+            _saved = _meta.保存済従業員.ToHashSet();
+        }
+        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task On回Changed(int k)
+    {
+        _回 = k;
+        await ReloadMeta();
+        await EnsureSelectionAsync();
+    }
+
+    private async Task OnEmployeeChanged(int number)
+    {
+        var item = _meta.従業員.FirstOrDefault(x => x.Number == number);
+        if (item is not null) await SelectAsync(item);
+    }
+
+    /// <summary>未選択（または対象外）なら先頭の従業員を選ぶ。選択済みなら回分を読み直す。</summary>
+    private async Task EnsureSelectionAsync()
+    {
+        if (_meta.従業員.Count == 0) { _sel = null; _selNumber = 0; _entry = null; return; }
+        var item = _meta.従業員.FirstOrDefault(x => x.Number == _selNumber) ?? _meta.従業員[0];
+        await SelectAsync(item);
+    }
+
+    private async Task SelectAsync(EmployeeListItem item)
+    {
+        try
+        {
+            _sel = item;
+            _selNumber = item.Number;
+            _entry = await Task.Run(() => Db.LoadBonusEntry(item.Number.ToString(), _回));
+        }
+        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+    }
+
+    /// <summary>支給・控除の金額変更時に合計のみ即時再計算する（現行 kyuyoCalc 相当。保険料・所得税の自動算出はしない）。</summary>
+    private void OnAmountChanged()
+    {
+        if (_entry is null) return;
+        BonusProcessor.RecomputeTotals(_entry);
+    }
+
+    private async Task Calc()
+    {
+        if (_entry is null || _sel is null) return;
+        _busy = true;
+        try
+        {
+            _entry = await Task.Run(() => Db.CalculateBonus(_entry!, _sel!.Number, _回));
+            Snackbar.Add("計算しました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"計算に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task Save()
+    {
+        if (_entry is null) return;
+        _busy = true;
+        try
+        {
+            await Task.Run(() => Db.SaveBonusEntry(_entry!));
+            if (_sel is not null) _saved.Add(_sel.Number); // 一覧の「計算済」マークを更新。
+            Snackbar.Add("保存しました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+}

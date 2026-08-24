@@ -1,0 +1,52 @@
+@using PayCalcDXPro.Data.MyNumber
+
+@* 個人番号（マイナンバー）入力ダイアログ。現行 F_報酬支払受者番号の入力 に相当。
+   チェックデジット検証（MyNumberValidator）。空はクリア扱いで許容。 *@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6"><MudIcon Icon="@Icons.Material.Filled.Badge" Class="mr-2" />個人番号（マイナンバー）の入力</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_value" Label="個人番号（12桁）" MaxLength="12" InputMode="InputMode.numeric"
+                      Variant="Variant.Outlined" Immediate="true" Error="_error" ErrorText="@_errorText"
+                      Adornment="Adornment.End" AdornmentIcon="@(_show ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                      OnAdornmentClick="@(() => _show = !_show)"
+                      InputType="@(_show ? InputType.Text : InputType.Password)" />
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+            空欄でOKすると個人番号を削除します。
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">キャンセル</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Ok">OK</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>編集開始時の個人番号。</summary>
+    [Parameter] public string Current { get; set; } = "";
+
+    private string _value = "";
+    private bool _error;
+    private bool _show;
+    private string _errorText = "";
+
+    protected override void OnInitialized() => _value = Current ?? "";
+
+    private void Ok()
+    {
+        string v = (_value ?? "").Trim();
+        // 空はクリア扱い、値ありは12桁＋チェックデジット必須。
+        if (!string.IsNullOrEmpty(v) && !MyNumberValidator.IsValid(v))
+        {
+            _error = true;
+            _errorText = "個人番号の形式（12桁・チェックデジット）が正しくありません。";
+            return;
+        }
+        MudDialog.Close(DialogResult.Ok(v));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

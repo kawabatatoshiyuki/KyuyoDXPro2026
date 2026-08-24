@@ -1,0 +1,67 @@
+@using PayCalcDXPro.Data.Employee
+
+@* CSV出力する従業員を選択するダイアログ。既定は全員選択。確定で選択した Number のリストを返す。 *@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6"><MudIcon Icon="@Icons.Material.Filled.FileDownload" Class="mr-2" />出力する従業員の選択</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="min-width:420px;">
+            <div class="d-flex align-center justify-space-between mb-1">
+                <MudCheckBox T="bool" Value="_allSelected" ValueChanged="ToggleAll" Dense="true" Color="Color.Primary">
+                    すべて選択
+                </MudCheckBox>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@_sel.Count / @Employees.Count 名</MudText>
+            </div>
+            <MudDivider Class="mb-1" />
+            <div style="max-height:52vh;overflow:auto;">
+                @foreach (var e in Employees)
+                {
+                    <MudCheckBox T="bool" Value="@_sel.Contains(e.Number)" Dense="true" Color="Color.Primary"
+                                 ValueChanged="@((bool v) => Set(e.Number, v))">
+                        <span style="font-family:monospace;">No.@e.No</span>　@e.氏名 @(e.退職 ? "［退職］" : "")
+                    </MudCheckBox>
+                }
+            </div>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">キャンセル</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Ok" Disabled="_sel.Count == 0">
+            出力する（@_sel.Count 名）
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>選択候補の従業員一覧（一覧の並び順）。</summary>
+    [Parameter] public IReadOnlyList<EmployeeListItem> Employees { get; set; } = Array.Empty<EmployeeListItem>();
+
+    private readonly HashSet<int> _sel = new();
+    private bool _allSelected => Employees.Count > 0 && _sel.Count == Employees.Count;
+
+    // 既定は全員選択（そのまま「出力する」で全件出力できる）。
+    protected override void OnInitialized()
+    {
+        foreach (var e in Employees) _sel.Add(e.Number);
+    }
+
+    private void ToggleAll(bool v)
+    {
+        _sel.Clear();
+        if (v) foreach (var e in Employees) _sel.Add(e.Number);
+    }
+
+    private void Set(int number, bool v)
+    {
+        if (v) _sel.Add(number); else _sel.Remove(number);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    // 出力順は一覧の並び順に合わせて返す。
+    private void Ok()
+        => MudDialog.Close(DialogResult.Ok(Employees.Where(e => _sel.Contains(e.Number)).Select(e => e.Number).ToList()));
+}

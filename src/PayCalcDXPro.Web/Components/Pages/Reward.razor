@@ -1,0 +1,316 @@
+@page "/year-end/reward"
+@using PayCalcDXPro.Data.YearEnd
+@using PayCalcDXPro.Data.MyNumber
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>報酬、料金、契約金及び賞金の支払調書｜給与計算DXPro</PageTitle>
+
+@* 明細テーブルの細目列：文字データなので左詰め・十分な幅（12文字程度）に。
+   共通CSS(ye-amount-table)の右寄せを上書き。app.cssのキャッシュに左右されないようインライン化。 *@
+<style>
+    /* #列は削除済。細目が先頭列＝左詰め・十分な幅。 */
+    .reward-detail td.reward-detail__saimoku, .reward-detail th:first-child {
+        width: auto; min-width: 15em; white-space: normal; text-align: left;
+    }
+    .reward-detail td.reward-detail__saimoku input { text-align: left !important; }
+    /* 法人／個人の区分ラジオを横並びに＋右横の番号欄が下へ折返さないよう内容幅固定（不動産と同じ対策）。 */
+    .pay-row .mud-radio-group {
+        display: flex !important; flex-direction: row !important; align-items: center; flex-wrap: wrap; column-gap: 1.25rem;
+    }
+    .pay-row .mud-radio-group > .mud-input-control {
+        flex: 0 0 auto !important; width: auto !important; max-width: none !important;
+    }
+    .re-kbn-radio { flex: 0 0 auto !important; width: auto !important; }
+    /* 2カラムレイアウト：左列(氏名・区分)は狭く、右列(住所・区分名称)を広く。
+       画面幅が狭くなると1カラムに落ち、右列(住所・区分名称)が下段へ回り込む。全幅行(区分ラジオ)は常にスパン。 */
+    .pay-list.pay-list--2col { display: grid; grid-template-columns: minmax(12em, 1fr) minmax(20em, 2fr); column-gap: 1.75rem; align-items: start; }
+    .pay-list.pay-list--2col > .pay-row--full { grid-column: 1 / -1; }
+    @@media (max-width: 960px) {
+        .pay-list.pay-list--2col { grid-template-columns: 1fr; }
+    }
+</style>
+
+@* 固定ヘッダー：整理番号選択＋新規＋保存/削除。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar proc-header__bar--stacked">
+        <div class="proc-header__title">
+            <MudIcon Icon="@Icons.Material.Filled.Paid" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">報酬、料金、契約金及び賞金の支払調書</MudText>
+        </div>
+        <div class="proc-header__main">
+            <div class="proc-header__controls">
+                <MudSelect T="int?" Value="_selectedNo" ValueChanged="On整理番号Changed" Label="整理番号"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:280px;" Clearable="true">
+                    @foreach (var t in _list)
+                    {
+                        <MudSelectItem T="int?" Value="@t.No">@t.No　@t.名称</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="新規">新規</MudButton>
+            </div>
+            <div class="proc-header__actions">
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete"
+                           OnClick="削除" Disabled="_e.No <= 0 || _busy">削除</MudButton>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Print"
+                           Href="@(_e.No > 0 ? $"/year-end/reward/pdf?no={_e.No}" : null)" Target="_blank"
+                           Disabled="_e.No <= 0">印刷</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                           OnClick="保存" Disabled="_busy">@(_e.No <= 0 ? "登録" : "更新")</MudButton>
+            </div>
+        </div>
+    </div>
+</MudPaper>
+
+@* 提出：カード外の共通ツールバー（区分ラジオは支払を受ける者カード内へ移動＝不動産と同じ形）。 *@
+<MudPaper Elevation="1" Class="mx-2 mt-2 px-4 py-2 d-flex align-center flex-wrap gap-6">
+    <MudCheckBox T="bool" @bind-Value="_e.提出" Label="支払調書を提出する" Color="Color.Primary" Dense="true" />
+</MudPaper>
+
+<MudGrid Spacing="2" Class="pa-2">
+    @* 支払を受ける者（不動産と同じ形：区分ラジオ横並び＋右横に番号入力を同一行配置） *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4" Style="height:100%;">
+            <div class="proc-section-title">支払を受ける者</div>
+            <div class="pay-list pay-list--2col">
+                <div class="pay-row pay-row--required">
+                    <span class="pay-row__label">氏名又は名称</span>
+                    <span class="pay-row__amount pay-row__amount--grow">
+                        <MudTextField @bind-Value="_e.名称" Variant="Variant.Text" Margin="Margin.Dense"
+                                      Required="true" RequiredError="氏名又は名称を入力してください。" />
+                    </span>
+                </div>
+                <div class="pay-row">
+                    <span class="pay-row__label">住所（居所）又は所在地</span>
+                    <span class="pay-row__amount pay-row__amount--grow">
+                        <MudTextField @bind-Value="_e.所在地" Variant="Variant.Text" Margin="Margin.Dense" />
+                    </span>
+                </div>
+                <div class="pay-row pay-row--full">
+                    <span class="pay-row__label">法人／個人の区分</span>
+                    <span class="pay-row__amount pay-row__amount--grow d-flex align-center flex-wrap gap-6">
+                        <MudRadioGroup T="string" Class="re-kbn-radio" Value="_e.支払受者区分" ValueChanged="On区分Changed">
+                            <MudRadio T="string" Value="@("1")" Color="Color.Primary" Dense="true">法人</MudRadio>
+                            <MudRadio T="string" Value="@("2")" Color="Color.Primary" Dense="true">個人（個人事業主）</MudRadio>
+                        </MudRadioGroup>
+                        @if (_e.支払受者区分 == "2")
+                        {
+                            @* 個人：マイナンバーはダイアログで入力（チェックデジット検証・アクセスログ）。画面はマスク表示。 *@
+                            <span class="d-flex align-center gap-2">
+                                <span class="pay-row__label" style="width:auto;">個人番号（マイナンバー）</span>
+                                <span style="font-family:monospace;">@MaskedNumber</span>
+                                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Badge"
+                                           OnClick="OpenMyNumberDialog">個人番号を入力</MudButton>
+                            </span>
+                        }
+                        else
+                        {
+                            @* 法人：法人番号（13桁）を直接入力。 *@
+                            <span class="d-flex align-center gap-2">
+                                <span class="pay-row__label" style="width:auto;">法人番号（13桁）</span>
+                                <MudTextField @bind-Value="_e.支払受者番号" Variant="Variant.Text" Margin="Margin.Dense" Style="width:14em;"
+                                              MaxLength="13" InputMode="InputMode.numeric"
+                                              Error="_番号エラー" ErrorText="@_番号エラーText" />
+                            </span>
+                        }
+                    </span>
+                </div>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* 区分 *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4" Style="height:100%;">
+            <div class="proc-section-title">区分（所得税法204条 各号）</div>
+            <div class="pay-list pay-list--2col">
+                <div class="pay-row">
+                    <span class="pay-row__label">区分</span>
+                    <span class="pay-row__amount pay-row__amount--grow">
+                        <MudSelect T="string" @bind-Value="_e.区分[0]" Variant="Variant.Text" Margin="Margin.Dense" Dense="true" Clearable="true">
+                            @foreach (var k in RewardRepository.Kubuns)
+                            {
+                                <MudSelectItem T="string" Value="@k.コード">@k.コード：@k.名称</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </span>
+                </div>
+                <div class="pay-row">
+                    <span class="pay-row__label">区分名称</span>
+                    <span class="pay-row__amount pay-row__amount--grow">
+                        <MudTextField @bind-Value="_e.区分名称" Variant="Variant.Text" Margin="Margin.Dense"
+                                      HelperText="入力した場合は帳票の1区分目で区分コード名より優先されます。" HelperTextOnFocus="true" />
+                    </span>
+                </div>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* 明細（5区分：細目・支払金額・内未払・源泉徴収税額・内未徴収税額） *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">明細</div>
+            <div class="ye-amount-scroll">
+                <MudSimpleTable Dense="true" Bordered="true" Class="ye-amount-table reward-detail">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left;">細目</th>
+                            <th>支払金額</th>
+                            <th>内・未払</th>
+                            <th>源泉徴収税額</th>
+                            <th>内・未徴収税額</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int k = 0; k < 5; k++)
+                        {
+                            var i = k;
+                            <tr>
+                                <td class="reward-detail__saimoku">
+                                    <MudTextField @bind-Value="_e.細目[i]" Variant="Variant.Text" Margin="Margin.Dense" />
+                                </td>
+                                <td>@Num(() => _e.支払金額[i], v => _e.支払金額[i] = v, wide: true)</td>
+                                <td>@Num(() => _e.内未払[i], v => _e.内未払[i] = v)</td>
+                                <td>@Num(() => _e.源泉徴収税額[i], v => _e.源泉徴収税額[i] = v)</td>
+                                <td>@Num(() => _e.内未徴収税額[i], v => _e.内未徴収税額[i] = v)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* 摘要 *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">摘要</div>
+            <MudTextField @bind-Value="_e.摘要" Variant="Variant.Outlined" Lines="2" />
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private IReadOnlyList<RewardListItem> _list = Array.Empty<RewardListItem>();
+    private int? _selectedNo;
+    private RewardRecord _e = new();
+    private bool _busy;
+    private bool _番号エラー;
+    private string _番号エラーText = "";
+
+    private RenderFragment Num(Func<int?> get, Action<int?> set, bool wide = false) =>
+        @<div class="ye-cell-amount">
+            <MudNumericField T="int?" Value="get()" ValueChanged="@((int? v) => set(v))" Variant="Variant.Text"
+                             Format="#,##0" HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric" Min="0"
+                             Class="@(wide ? "ye-num ye-num--wide" : "ye-num")" />
+            <span class="pay-yen">円</span>
+         </div>;
+
+    // 個人番号（マイナンバー）は末尾4桁のみ表示、他はマスク。未登録は「未登録」。
+    private string MaskedNumber
+    {
+        get
+        {
+            string n = _e.支払受者番号 ?? "";
+            if (string.IsNullOrEmpty(n)) return "未登録";
+            if (n.Length <= 4) return new string('●', n.Length);
+            return new string('●', n.Length - 4) + n[^4..];
+        }
+    }
+
+    private async Task OpenMyNumberDialog()
+    {
+        // 参照アクセスログ（現行サブフォーム表示時の"参照"に相当）。
+        Db.LogRewardMyNumberView(_e.支払受者番号 ?? "");
+        var parameters = new DialogParameters { ["Current"] = _e.支払受者番号 ?? "" };
+        var dialog = await Dialog.ShowAsync<Components.Shared.MyNumberInputDialog>("個人番号の入力", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data is string v)
+        {
+            _e.支払受者番号 = v;
+            _番号エラー = false;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        _list = Db.ListRewards();
+        新規();
+    }
+
+    private void On整理番号Changed(int? no)
+    {
+        _selectedNo = no;
+        if (no is null) { 新規(); return; }
+        _e = Db.LoadReward(no.Value) ?? new RewardRecord();
+        _番号エラー = false;
+    }
+
+    private void 新規()
+    {
+        _selectedNo = null;
+        _e = new RewardRecord { 支払受者区分 = "1" };
+        _番号エラー = false;
+    }
+
+    private void On区分Changed(string kubun)
+    {
+        _e.支払受者区分 = kubun == "2" ? "2" : "1";
+        _e.支払受者番号 = "";
+        _番号エラー = false;
+    }
+
+    private bool 番号Valid()
+    {
+        string n = _e.支払受者番号 ?? "";
+        if (n.Length == 0) return true; // 未入力は許容（提出時に別途チェック運用）
+        if (_e.支払受者区分 == "2") return MyNumberValidator.IsValid(n);   // 個人番号＝12桁＋チェックデジット
+        return n.All(char.IsDigit) && n.Length == 13;                     // 法人番号＝13桁
+    }
+
+    private void 保存()
+    {
+        if (string.IsNullOrWhiteSpace(_e.名称)) { Snackbar.Add("氏名又は名称を入力してください。", Severity.Warning); return; }
+        if (!番号Valid())
+        {
+            _番号エラー = true;
+            _番号エラーText = _e.支払受者区分 == "2" ? "個人番号（12桁・チェックデジット）が正しくありません。" : "13桁の法人番号を入力してください。";
+            Snackbar.Add(_番号エラーText, Severity.Error);
+            return;
+        }
+        _番号エラー = false;
+
+        _busy = true;
+        try
+        {
+            int no = Db.SaveReward(_e);
+            _list = Db.ListRewards();
+            _selectedNo = no;
+            _e.No = no;
+            Snackbar.Add($"整理番号 {no} を保存しました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task 削除()
+    {
+        if (_e.No <= 0) return;
+        bool? ok = await Dialog.ShowMessageBoxAsync("確認", $"整理番号 {_e.No}（{_e.名称}）を削除します。よろしいですか？",
+            yesText: "削除する", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        try
+        {
+            Db.DeleteReward(_e.No, _e.支払受者番号);
+            _list = Db.ListRewards();
+            Snackbar.Add("削除しました。", Severity.Success);
+            新規();
+        }
+        catch (Exception ex) { Snackbar.Add($"削除に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+}

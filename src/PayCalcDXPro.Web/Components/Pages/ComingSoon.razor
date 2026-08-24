@@ -1,0 +1,51 @@
+@* 未実装ルート用のスタブ（現在は全ルート実装済みのため @page 無し。将来の未実装機能で @page を付けて再利用する）。 *@
+@inject NavigationManager Nav
+
+<PageTitle>準備中｜給与計算DXPro</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="0" Class="pa-8 d-flex flex-column align-center" Style="text-align:center;">
+        <MudIcon Icon="@Icons.Material.Filled.Construction" Color="Color.Secondary" Size="Size.Large" Class="mb-4" />
+        <MudText Typo="Typo.h5" GutterBottom="true">この画面は準備中です</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            「@FeatureName」は現在移行作業中です。順次提供してまいります。
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Dashboard"
+                   OnClick="@(() => Nav.NavigateTo("/"))">
+            ダッシュボードに戻る
+        </MudButton>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-4">/@Path</MudText>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string Path => Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0];
+
+    private string FeatureName => Path switch
+    {
+        "setup/company" => "会社情報",
+        "setup/paydays" => "支払日",
+        "setup/items" => "支給・控除項目",
+        "setup/employees" => "従業員",
+        "setup/mynumber" => "マイナンバー",
+        "payroll/process" => "給与・賞与計算",
+        "payroll/payslip" => "支払明細書",
+        "payroll/ledger-month" => "賃金台帳（支給月分）",
+        "payroll/ledger-employee" => "賃金台帳（従業員別）",
+        "payroll/reports" => "関連帳票",
+        "year-end/employee" => "年末調整 従業員情報",
+        "year-end/retirement" => "退職源泉",
+        "year-end/reward" => "報酬",
+        "year-end/realestate" => "不動産",
+        "year-end/realestate-transfer" => "不動産譲受",
+        "year-end/realestate-mediation" => "不動産あっせん",
+        "year-end/withholding-slip" => "源泉徴収票",
+        "year-end/summary" => "集計表",
+        "year-end/legal-record" => "法定調書",
+        "settings/insurance-rates" => "保険料率",
+        "settings/tax-table" => "所得税（月額表）",
+        "help" => "マニュアル・ヘルプ",
+        _ => "指定された機能",
+    };
+}

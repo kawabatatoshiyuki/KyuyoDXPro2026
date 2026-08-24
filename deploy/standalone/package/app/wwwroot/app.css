@@ -1,0 +1,455 @@
+h1:focus {
+    outline: none;
+}
+
+/* 体験版の年度ロックでブロック中の全面案内。 */
+.trial-block {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--mud-palette-background, #F5F6FA);
+    z-index: 3000;
+}
+
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid #26b050;
+}
+
+.invalid {
+    outline: 1px solid #e50000;
+}
+
+.validation-message {
+    color: #e50000;
+}
+
+.blazor-error-boundary {
+    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
+    padding: 1rem 1rem 1rem 3.7rem;
+    color: white;
+}
+
+    .blazor-error-boundary::after {
+        content: "An error has occurred."
+    }
+
+.darker-border-checkbox.form-check-input {
+    border-color: #929292;
+}
+
+/* 画面ヘッダーをスクロール追従で固定（AppBarの直下に留める）。
+   MudPaper は .mud-paper{position:relative!important} を持つため !important で上書きが必要。
+   コンテナの上マージン(my-6=24px)を相殺し、初期表示からAppBar直下に密着させる（スクロールでずれない）。 */
+/* タブメニュー直下とカード（パネル内容）の間に余白を空ける。 */
+.spaced-tabs .mud-tabs-panels {
+    padding-top: 16px;
+}
+
+/* 列数の多い表（賞与甲欄など）はセルの左右パディングを詰めて全列を収める。 */
+.compact-cells th,
+.compact-cells td {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+}
+
+/* 支給・控除項目：固定項目（読み取り専用）は入力欄全体をグレー＋黒文字。
+   入力項目（編集可）は既定の白背景なので、グレー=固定／白=入力で区別できる。 */
+.fixed-item .mud-input {
+    background-color: #ececec;
+    border-radius: 4px;
+}
+.fixed-item .mud-input-slot,
+.fixed-item input {
+    color: rgba(0, 0, 0, 0.87);
+}
+
+.company-sticky-header,
+.page-sticky-header {
+    position: sticky !important;
+    top: var(--mud-appbar-height, 64px);
+    z-index: 5;
+    background-color: var(--mud-palette-surface);
+    margin-top: -24px;
+    margin-bottom: 32px;
+}
+
+/* ===== 給与/賞与処理 共通：ヘッダー =====
+   モバイル（<600px）＝タイトルの下にドロップダウン・操作ボタンを縦積み。
+   タブレット/PC（>=600px）＝タイトル横にドロップダウン、操作ボタンは右端。 */
+.proc-header__bar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px 16px;
+}
+.proc-header__main {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px 16px;
+    flex: 1 1 auto;
+}
+/* タイトルは絶対に縮めない＝アイコンと見出しが縦書きにならない。 */
+.proc-header__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+/* ドロップダウン群。タブレット/PCではタイトル横、モバイルではタイトル下に並ぶ。 */
+.proc-header__controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+.proc-header__actions {
+    display: flex;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+@media (min-width: 600px) {
+    .proc-header__bar {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .proc-header__main {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    /* タブレット/PCでは操作ボタンを右端へ。 */
+    .proc-header__actions {
+        margin-left: auto;
+    }
+}
+
+/* 支払調書系の固定ヘッダー：タイトルを1行目・整理番号以下（操作類）を2行目に分ける。
+   タイトルを bar 直下の1行目に置き、__main を2行目コンテナ（整理番号＋操作ボタン）として再利用する。 */
+.proc-header__bar.proc-header__bar--stacked {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+/* ===== 支給・控除：給与明細風の行リスト（ラベル左／金額右・円ぞろえ） ===== */
+.pay-list {
+    display: flex;
+    flex-direction: column;
+}
+.pay-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 38px;
+    padding: 2px 10px;
+    border-bottom: 1px solid var(--mud-palette-divider);
+}
+.pay-row:nth-of-type(even) {
+    background-color: rgba(0, 0, 0, 0.022);
+}
+.pay-row__label {
+    font-size: .875rem;
+    line-height: 1.3;
+    color: var(--mud-palette-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pay-row--read .pay-row__label {
+    color: var(--mud-palette-text-secondary);
+}
+/* 金額エリア：固定幅の数値＋円。読取/入力どちらでも円位置が一致する。 */
+.pay-row__amount {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    flex: 0 0 auto;
+}
+.pay-num {
+    width: 120px;
+}
+.pay-num input {
+    text-align: right;
+}
+/* 自由入力（氏名・住所など）の行：値エリアを残り幅いっぱいに伸ばす。 */
+.pay-row__amount--grow {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.pay-row__amount--grow .mud-input-control {
+    width: 100%;
+}
+.pay-row--required .pay-row__label::after {
+    content: " *";
+    color: var(--mud-palette-error);
+}
+
+/* 区分別金額テーブル：数値入力は右寄せ。 */
+.ye-amount-table td input {
+    text-align: right;
+}
+/* 区分見出しは短縮表示（全文はツールチップ）。下線付きで詳細ありを示唆。 */
+.ye-kubun-label {
+    font-size: .85rem;
+    border-bottom: 1px dotted var(--mud-palette-text-secondary);
+    cursor: help;
+}
+/* セル内は「数値＋円」を並べ、数値を桁数ぶんの固定幅にして列内の円位置を揃える。 */
+.ye-cell-amount {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+.ye-num {
+    width: 104px; /* 税額列：百万（7桁）9,999,999 まで */
+    flex: 0 0 auto;
+}
+/* 金額入力は右詰めが基本（明細テーブル外の単独金額欄＝あっせん手数料等にも適用）。 */
+.ye-num input {
+    text-align: right;
+}
+/* 数値入力（人数・金額）は右寄せに統一（従業員編集フォーム・年末調整の収入欄など）。 */
+.num-right input {
+    text-align: right;
+}
+.ye-num--wide {
+    width: 118px; /* 支払金額列：千万（8桁）99,999,999 まで */
+}
+/* 金額列は内容ぶんに縮め、区分名の列が残り幅すべてを使う。 */
+.ye-amount-table th:first-child,
+.ye-amount-table td:first-child {
+    width: 100%;
+}
+.ye-amount-table th:not(:first-child),
+.ye-amount-table td:not(:first-child) {
+    width: 1%;
+    white-space: nowrap;
+}
+/* 特別徴収税額の束ね見出し：下段の2列（市町村民税・都道府県民税）を括る。 */
+.ye-group-head {
+    border-bottom: 1px solid var(--mud-palette-divider);
+    text-align: center;
+}
+.ye-sub-head {
+    font-weight: 500;
+    font-size: .8rem;
+}
+/* 金額列は幅固定のため、狭い画面ではテーブルを横スクロールさせる。 */
+.ye-amount-scroll {
+    overflow-x: auto;
+}
+.ye-amount-table {
+    min-width: 640px;
+}
+/* 支給情報タブの給与（月）・賞与（回）テーブル：先頭列が短い番号のため狭くし、
+   金額3列を均等に広げてカラム幅に収める。MudSimpleTable の Class は外側 div に付くため、
+   table-layout / width はラッパー内の table セレクタに指定する（div に付けても無効）。 */
+.ye-monthly {
+    min-width: 0;
+    overflow-x: hidden;
+}
+.ye-monthly table {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+}
+.ye-monthly th:first-child,
+.ye-monthly td:first-child {
+    width: 3em;
+    text-align: center;
+}
+.ye-monthly th:not(:first-child),
+.ye-monthly td:not(:first-child) {
+    width: auto;
+    text-align: right;
+}
+
+/* 時間外勤務テーブルのセル：右詰め数値＋単位（h.mm）。 */
+.ot-num {
+    width: 64px;
+}
+.ot-num input {
+    text-align: right;
+}
+.ot-unit {
+    color: var(--mud-palette-text-secondary);
+    font-size: .75rem;
+    white-space: nowrap;
+}
+/* 読取（計算結果）の数値はボックスを持たないプレーンテキストで明細らしく。 */
+.pay-amount-text {
+    width: 120px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: .9rem;
+}
+.pay-yen {
+    width: 1.2em;
+    color: var(--mud-palette-text-secondary);
+    font-size: .8rem;
+}
+/* 合計行（総支給額・総控除額）は強調。 */
+.pay-row--total {
+    border-top: 2px solid var(--mud-palette-divider);
+    border-bottom: none;
+    margin-top: 4px;
+}
+.pay-row--total .pay-row__label {
+    font-weight: 600;
+    color: var(--mud-palette-text-primary);
+}
+.pay-row--total .pay-amount-text {
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+/* セクション見出し（カード上部の細い下線つき）。 */
+.proc-section-title {
+    font-weight: 600;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+    border-bottom: 2px solid var(--mud-palette-primary);
+}
+
+/* 勤怠など：PCは2列・モバイルは1列で縦並び。 */
+.pay-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    column-gap: 24px;
+}
+@media (min-width: 960px) {
+    .pay-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* ===== アプリタイトル部（ヘッダー）：勤怠管理DXProの白基調に寄せる ===== */
+/* MudAppBar を白基調（Elevation=0）にし、下ボーダー＋控えめな影で区切る。 */
+.pcx-appbar {
+    border-bottom: 1px solid var(--mud-palette-divider);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .06), 0 1px 2px rgba(0, 0, 0, .04) !important;
+}
+
+/* メニュー（三本線）ボタン：勤怠管理DXPro の .nav-hamburger と完全に同じ寸法。
+   span×3（各 height:2px・gap:5px）、ボックス 36x36・padding:6px・radius:8px。
+   すべて px 固定なので文字サイズ切替（html font-size = rem）の影響を受けない。 */
+.pcx-hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    gap: 5px;
+    width: 36px;
+    height: 36px;
+    padding: 6px;
+    background: none;
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    color: var(--mud-palette-text-secondary);
+}
+.pcx-hamburger span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    min-height: 2px;
+    background: currentColor;
+    border-radius: 2px;
+    flex: 0 0 auto;
+}
+.pcx-hamburger:hover {
+    background: var(--mud-palette-action-default-hover);
+}
+
+/* ロゴアイコン（DXPro2026.png）。 */
+.pcx-logo-img {
+    height: 30px;
+    width: 30px;
+    object-fit: contain;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.pcx-logo-text {
+    font-weight: 700;
+}
+
+/* 文字サイズ切替（小/中/大）：連結トグル。 */
+.pcx-fontsize {
+    display: inline-flex;
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    margin-right: 4px;
+}
+.pcx-fontsize button {
+    border: none;
+    background: transparent;
+    padding: 5px 10px;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--mud-palette-appbar-text);
+    cursor: pointer;
+    border-left: 1px solid var(--mud-palette-divider);
+    -webkit-tap-highlight-color: transparent;
+}
+.pcx-fontsize button:first-child {
+    border-left: none;
+}
+.pcx-fontsize button:hover {
+    background: var(--mud-palette-action-default-hover);
+}
+.pcx-fontsize button.active {
+    background: var(--mud-palette-primary);
+    color: var(--mud-palette-primary-text);
+    font-weight: 700;
+}
+@media (max-width: 767px) {
+    .pcx-fontsize {
+        display: none;
+    }
+}
+
+/* ログイン操作者チップ（丸アバター＋操作者名）。 */
+.pcx-user {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 4px;
+}
+.pcx-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--mud-palette-primary);
+    color: var(--mud-palette-primary-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.pcx-username {
+    font-size: 13px;
+    font-weight: 600;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@media (max-width: 599px) {
+    .pcx-username {
+        display: none;
+    }
+}

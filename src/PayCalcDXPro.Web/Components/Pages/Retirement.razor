@@ -1,0 +1,284 @@
+@page "/year-end/retirement"
+@using PayCalcDXPro.Data.YearEnd
+@using PayCalcDXPro.Data.MyNumber
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>退職所得の源泉徴収票・特別徴収票｜給与計算DXPro</PageTitle>
+
+@* 固定ヘッダー：整理番号選択＋新規＋保存/削除。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar proc-header__bar--stacked">
+        <div class="proc-header__title">
+            <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">退職所得の源泉徴収票・特別徴収票</MudText>
+        </div>
+        <div class="proc-header__main">
+            <div class="proc-header__controls">
+                <MudSelect T="int?" Value="_selectedNo" ValueChanged="On整理番号Changed" Label="整理番号"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:240px;" Clearable="true">
+                    @foreach (var t in _list)
+                    {
+                        <MudSelectItem T="int?" Value="@t.No">@t.No　@t.氏名</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="新規">新規</MudButton>
+            </div>
+            <div class="proc-header__actions">
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete"
+                           OnClick="削除" Disabled="_e.No <= 0 || _busy">削除</MudButton>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Print"
+                           Href="@(_e.No > 0 ? $"/year-end/retirement/pdf?no={_e.No}" : null)" Target="_blank"
+                           Disabled="_e.No <= 0">印刷</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                           OnClick="保存" Disabled="_busy">@(_e.No <= 0 ? "登録" : "更新")</MudButton>
+            </div>
+        </div>
+    </div>
+</MudPaper>
+
+@* 提出設定：カード外の共通ツールバー（退職者から取込は「支払を受ける者」見出し横へ移設。提出チェックは報酬等と同じ左寄せ）。 *@
+<MudPaper Elevation="1" Class="mx-2 mt-2 px-4 py-2 d-flex align-center flex-wrap gap-6">
+    <MudCheckBox T="bool" @bind-Value="_e.提出" Label="支払調書を提出する" Color="Color.Primary" Dense="true" />
+</MudPaper>
+
+<MudGrid Spacing="2" Class="pa-2">
+    @* 支払を受ける者 *@
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="1" Class="pa-4" Style="height:100%;">
+            <div class="proc-section-title d-flex align-center justify-space-between flex-wrap gap-4">
+                <span>支払を受ける者</span>
+                <MudSelect T="int?" Value="_取込番号" ValueChanged="On退職者Selected" Label="退職者から取込"
+                           Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense" Style="min-width:200px;max-width:300px;" Clearable="true">
+                    @foreach (var r in _退職者)
+                    {
+                        <MudSelectItem T="int?" Value="@r.Number">@r.No　@r.表示名</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+            <div class="pay-list">
+                <div class="pay-row pay-row--required">
+                    <span class="pay-row__label">役職・氏名</span>
+                    <span class="pay-row__amount pay-row__amount--grow">
+                        <MudTextField @bind-Value="_e.氏名" Variant="Variant.Text" Margin="Margin.Dense"
+                                      Required="true" RequiredError="役職・氏名を入力してください。" />
+                    </span>
+                </div>
+                <div class="pay-row">
+                    <span class="pay-row__label">個人番号</span>
+                    <span class="pay-row__amount pay-row__amount--grow">
+                        <MudTextField @bind-Value="_e.個人番号" Variant="Variant.Text" Margin="Margin.Dense"
+                                      MaxLength="12" InputMode="InputMode.numeric" Error="_個人番号エラー"
+                                      ErrorText="12桁の正しい個人番号を入力してください" />
+                    </span>
+                </div>
+                <div class="pay-row">
+                    <span class="pay-row__label">住所又は居所</span>
+                    <span class="pay-row__amount pay-row__amount--grow">
+                        <MudTextField @bind-Value="_e.住所" Variant="Variant.Text" Margin="Margin.Dense" />
+                    </span>
+                </div>
+                <div class="pay-row">
+                    <span class="pay-row__label">1月1日の住所</span>
+                    <span class="pay-row__amount pay-row__amount--grow">
+                        <MudTextField @bind-Value="_e.年始住所" Variant="Variant.Text" Margin="Margin.Dense" />
+                    </span>
+                </div>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* 退職所得・期間 *@
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="1" Class="pa-4" Style="height:100%;">
+            <div class="proc-section-title">退職所得控除・勤続期間</div>
+            <div class="pay-list">
+                @Money("退職所得控除額", () => _e.退職所得控除額, v => _e.退職所得控除額 = v)
+                <div class="pay-row">
+                    <span class="pay-row__label">勤続年数</span>
+                    <span class="pay-row__amount" style="flex:0 0 auto;">
+                        <MudTextField @bind-Value="_e.勤続年数" Variant="Variant.Text" Margin="Margin.Dense" Class="pay-num" />
+                        <span class="pay-yen">年</span>
+                    </span>
+                </div>
+                <div class="pay-row">
+                    <span class="pay-row__label">就職年月日</span>
+                    <span class="pay-row__amount" style="flex:0 0 auto;">
+                        <DateInput Value="@_e.就職年月日" ValueChanged="@((string? v) => _e.就職年月日 = v ?? "")" Width="160px" />
+                    </span>
+                </div>
+                <div class="pay-row">
+                    <span class="pay-row__label">退職年月日</span>
+                    <span class="pay-row__amount" style="flex:0 0 auto;">
+                        <DateInput Value="@_e.退職年月日" ValueChanged="@((string? v) => _e.退職年月日 = v ?? "")" Width="160px" />
+                    </span>
+                </div>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* 3区分（所得税法201条 1項1号/1項2号/3項） *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">区分別の支払金額・税額</div>
+            <div class="ye-amount-scroll">
+                <MudSimpleTable Dense="true" Bordered="true" Class="ye-amount-table">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="width:auto; vertical-align:bottom;">区分</th>
+                            <th rowspan="2" style="vertical-align:bottom;">支払金額</th>
+                            <th rowspan="2" style="vertical-align:bottom;">源泉徴収税額</th>
+                            <th colspan="2" class="ye-group-head" style="text-align:center;">特別徴収税額</th>
+                        </tr>
+                        <tr>
+                            <th class="ye-sub-head">市町村民税</th>
+                            <th class="ye-sub-head">都道府県民税</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int k = 0; k < 3; k++)
+                        {
+                            var i = k;
+                            <tr>
+                                <td style="text-align:left; white-space:nowrap;">
+                                    <MudTooltip Text="@_区分名[i]" Placement="Placement.Top" Arrow="true">
+                                        <span class="ye-kubun-label">@_区分短名[i]</span>
+                                    </MudTooltip>
+                                </td>
+                                <td>@Num(() => _e.支払金額[i], v => _e.支払金額[i] = v, wide: true)</td>
+                                <td>@Num(() => _e.源泉徴収税額[i], v => _e.源泉徴収税額[i] = v)</td>
+                                <td>@Num(() => _e.市町村民税[i], v => _e.市町村民税[i] = v)</td>
+                                <td>@Num(() => _e.道府県民税[i], v => _e.道府県民税[i] = v)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* 摘要 *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">摘要</div>
+            <MudTextField @bind-Value="_e.摘要" Variant="Variant.Outlined" Lines="2" />
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private IReadOnlyList<RetirementWithholdingListItem> _list = Array.Empty<RetirementWithholdingListItem>();
+    private IReadOnlyList<RetiredEmployeeItem> _退職者 = Array.Empty<RetiredEmployeeItem>();
+    private int? _selectedNo;
+    private int? _取込番号;
+    private RetirementWithholdingRecord _e = new();
+    private bool _busy;
+    private bool _個人番号エラー;
+
+    // 区分の正式名称（現行ラベル。ツールチップで全文表示）。
+    private readonly string[] _区分名 =
+    {
+        "所得税法 第201条第１項第１号並びに地方税法第50条の６第１項第１号及び第328条の６第１項第１号適用分",
+        "所得税法 第201条第１項第２号並びに地方税法第50条の６第１項第２号及び第328条の６第１項第２号適用分",
+        "所得税法 第201条第３項並びに地方税法第50条の６第２項及び第328条の６第２項適用分",
+    };
+
+    // テーブル表示用の短い見出し（全文はツールチップ）。
+    private readonly string[] _区分短名 =
+    {
+        "① 201条１項１号（申告書あり・一般）",
+        "② 201条１項２号（申告書あり・障害等）",
+        "③ 201条３項（申告書なし）",
+    };
+
+    private RenderFragment Money(string label, Func<int> get, Action<int> set) =>
+        @<div class="pay-row">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <MudNumericField T="int" Value="get()" ValueChanged="@((int v) => set(v))" Variant="Variant.Text"
+                                 Format="#,##0" HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric" Class="pay-num" />
+                <span class="pay-yen" style="width:2.4em;">万円</span>
+            </span>
+         </div>;
+
+    private RenderFragment Num(Func<int> get, Action<int> set, bool wide = false) =>
+        @<div class="ye-cell-amount">
+            <MudNumericField T="int" Value="get()" ValueChanged="@((int v) => set(v))" Variant="Variant.Text"
+                             Format="#,##0" HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric" Min="0"
+                             Class="@(wide ? "ye-num ye-num--wide" : "ye-num")" />
+            <span class="pay-yen">円</span>
+         </div>;
+
+    protected override void OnInitialized()
+    {
+        _list = Db.ListRetirementWithholdings();
+        _退職者 = Db.ListRetiredEmployees();
+        新規();
+    }
+
+    private void On整理番号Changed(int? no)
+    {
+        _selectedNo = no;
+        if (no is null) { 新規(); return; }
+        _e = Db.LoadRetirementWithholding(no.Value) ?? new RetirementWithholdingRecord();
+        _個人番号エラー = false;
+    }
+
+    private void 新規()
+    {
+        _selectedNo = null;
+        _取込番号 = null;
+        _e = new RetirementWithholdingRecord();
+        _個人番号エラー = false;
+    }
+
+    private void On退職者Selected(int? number)
+    {
+        _取込番号 = number;
+        if (number is null) return;
+        var p = Db.PrefillRetiredEmployee(number.Value);
+        _e.氏名 = p.役職氏名;
+        if (!string.IsNullOrEmpty(p.個人番号)) _e.個人番号 = p.個人番号;
+        _e.住所 = p.住所;
+        _e.退職年月日 = p.退職年月日;
+    }
+
+    private void 保存()
+    {
+        if (string.IsNullOrWhiteSpace(_e.氏名)) { Snackbar.Add("役職・氏名を入力してください。", Severity.Warning); return; }
+        _個人番号エラー = !MyNumberValidator.IsValid(_e.個人番号);
+        if (_個人番号エラー) { Snackbar.Add("個人番号の形式に誤りがあります。", Severity.Error); return; }
+
+        _busy = true;
+        try
+        {
+            int no = Db.SaveRetirementWithholding(_e);
+            _list = Db.ListRetirementWithholdings();
+            _selectedNo = no;
+            _e.No = no;
+            Snackbar.Add($"整理番号 {no} を保存しました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task 削除()
+    {
+        if (_e.No <= 0) return;
+        bool? ok = await Dialog.ShowMessageBoxAsync("確認", $"整理番号 {_e.No}（{_e.氏名}）を削除します。よろしいですか？",
+            yesText: "削除する", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        try
+        {
+            Db.DeleteRetirementWithholding(_e.No, _e.個人番号);
+            _list = Db.ListRetirementWithholdings();
+            Snackbar.Add("削除しました。", Severity.Success);
+            新規();
+        }
+        catch (Exception ex) { Snackbar.Add($"削除に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+}

@@ -1,0 +1,656 @@
+@page "/year-end/employee"
+@using PayCalcDXPro.Data.YearEnd
+@using PayCalcDXPro.Data.Company
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject PayCalcDXPro.Web.TabStateService TabState
+
+<PageTitle>年末調整計算｜給与計算DXPro</PageTitle>
+
+@* 給与計算（Payroll.razor）と共通の明細風デザイン。ラベル左／値右・単位ぞろえ（pay-row）、
+   セクションは proc-section-title 付き MudPaper、ヘッダーは proc-header__* を踏襲。 *@
+@{
+    // 数値入力（明細風：ラベル左／金額右・円）。
+    RenderFragment Money(string label, Func<int> get, Action<int> set) =>
+        @<div class="pay-row">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <MudNumericField T="int" Value="get()" ValueChanged="@((int v) => set(v))" Variant="Variant.Text"
+                                 Format="#,##0" HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric" Class="pay-num" />
+                <span class="pay-yen">円</span>
+            </span>
+         </div>;
+
+    // テキスト入力（ラベル左／入力右）。
+    RenderFragment TextRow(string label, Func<string?> get, Action<string?> set, int lines = 1, string width = "220px") =>
+        @<div class="pay-row">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount" style="flex:0 0 auto;">
+                <MudTextField T="string" Value="get()" ValueChanged="@((string v) => set(v))" Variant="Variant.Text"
+                              Margin="Margin.Dense" Lines="lines" Style="@($"width:{width};")" />
+            </span>
+         </div>;
+
+    // 日付入力（ラベル左／入力右）。西暦8桁/和暦7桁を受け付け yyyy/MM/dd へ整形（DateInput が担当）。
+    RenderFragment DateRow(string label, Func<string?> get, Action<string?> set, string width = "160px") =>
+        @<div class="pay-row">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount" style="flex:0 0 auto;">
+                <DateInput Value="@get()" ValueChanged="@((string? v) => set(v))" Width="@width" />
+            </span>
+         </div>;
+
+    // 適用区分など、コードマスタからの選択（ラベル左／セレクト右）。空コードは「（なし）」表示。
+    RenderFragment CodeSelectRow(string label, Func<string?> get, Action<string?> set, IReadOnlyList<CodeOption> opts, string defaultCode = "1") =>
+        @<div class="pay-row">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount" style="flex:0 0 auto;">
+                <MudSelect T="string" Value="@(string.IsNullOrEmpty(get()) ? defaultCode : get())" ValueChanged="@((string v) => set(v))"
+                           Variant="Variant.Text" Margin="Margin.Dense" Dense="true" Style="width:200px;">
+                    @foreach (var o in opts)
+                    {
+                        <MudSelectItem T="string" Value="@o.コード">@(string.IsNullOrWhiteSpace(o.値) ? "（なし）" : o.値)</MudSelectItem>
+                    }
+                </MudSelect>
+            </span>
+         </div>;
+
+    // チェック（ラベル左／チェック右）。
+    RenderFragment CheckRow(string label, Func<bool> get, Action<bool> set) =>
+        @<div class="pay-row">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <MudCheckBox T="bool" Value="get()" ValueChanged="@((bool v) => set(v))" Size="Size.Small" />
+            </span>
+         </div>;
+
+    // ラジオ（ラベル左／選択肢右・横並び）。
+    RenderFragment RadioRow(string label, Func<string?> get, Action<string?> set, (string v, string t)[] opts) =>
+        @<div class="pay-row">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount" style="flex:0 0 auto;">
+                <MudRadioGroup T="string" Value="get()" ValueChanged="@((string v) => set(v))">
+                    @foreach (var o in opts)
+                    {
+                        <MudRadio T="string" Value="@o.v" Size="Size.Small">@o.t</MudRadio>
+                    }
+                </MudRadioGroup>
+            </span>
+         </div>;
+
+    // 計算結果（読取：ラベル左／金額右・円）。
+    RenderFragment ReadRow(string label, int value) =>
+        @<div class="pay-row pay-row--read">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <span class="pay-amount-text">@value.ToString("#,##0")</span>
+                <span class="pay-yen">円</span>
+            </span>
+         </div>;
+
+    // 合計行（強調）。
+    RenderFragment TotalRow(string label, int value) =>
+        @<div class="pay-row pay-row--total">
+            <span class="pay-row__label">@label</span>
+            <span class="pay-row__amount">
+                <span class="pay-amount-text">@value.ToString("#,##0")</span>
+                <span class="pay-yen">円</span>
+            </span>
+         </div>;
+
+    // 金額を「1,234円」表記にする（各表の金額セル共通。最大 1 億＝100,000,000円 まで桁を表示）。
+    string 円(int v) => v.ToString("#,##0") + "円";
+
+    // 源泉徴収簿（年末調整欄）の1行：区分／金額／税額。金額・税額は null で空欄。
+    RenderFragment 簿行(string 区分, int? 金額, int? 税額, bool 強調 = false) =>
+        @<tr style="@(強調 ? "font-weight:700;" : "")">
+            <td>@区分</td>
+            <td class="ye-amount">@(金額.HasValue ? 円(金額.Value) : "")</td>
+            <td class="ye-amount">@(税額.HasValue ? 円(税額.Value) : "")</td>
+         </tr>;
+
+    // 収入種類コンボ（現行 002）。空コードは「（なし）」表示・既定は "1"。
+    RenderFragment 収入種類Select(Func<string?> get, Action<string?> set) =>
+        @<MudSelect T="string" Value="@(string.IsNullOrEmpty(get()) ? "1" : get())" ValueChanged="@((string v) => set(v))"
+                    Variant="Variant.Text" Margin="Margin.Dense" Dense="true">
+            @foreach (var o in _収入種類)
+            {
+                <MudSelectItem T="string" Value="@o.コード">@(string.IsNullOrWhiteSpace(o.値) ? "（なし）" : o.値)</MudSelectItem>
+            }
+         </MudSelect>;
+
+    // 障害ラジオ（なし/一般/特別＝3/1/2）。
+    RenderFragment 障害Radio(Func<string?> get, Action<string?> set) =>
+        @<MudRadioGroup T="string" Value="get()" ValueChanged="@((string v) => set(v))">
+            <MudRadio T="string" Value='@("3")' Size="Size.Small">なし</MudRadio>
+            <MudRadio T="string" Value='@("1")' Size="Size.Small">一般</MudRadio>
+            <MudRadio T="string" Value='@("2")' Size="Size.Small">特別</MudRadio>
+         </MudRadioGroup>;
+
+    // 配偶者1行（横並び：氏名/フリガナ/生年月日/収入種類/年間収入/障害/同居・非居住）。
+    RenderFragment 配偶者行(YearEndSpouse s) =>
+        @<div class="family-row">
+            <div class="family-no">配偶者</div>
+            <NameKanaInline Name="@s.氏名" NameChanged="@((string v) => s.氏名 = v)"
+                            Kana="@s.フリガナ" KanaChanged="@((string v) => s.フリガナ = v)" NameWidth="120px" KanaWidth="120px" />
+            <div class="fcell" style="width:130px;"><span class="flabel">生年月日</span>
+                <DateInput Value="@s.生年月日" ValueChanged="@((string? v) => s.生年月日 = v)" Width="130px" /></div>
+            <div class="fcell" style="width:96px;"><span class="flabel">収入種類</span>
+                @収入種類Select(() => s.収入種類, v => s.収入種類 = v)</div>
+            <div class="fcell" style="width:110px;"><span class="flabel">年間収入(円)</span>
+                <MudTextField T="string" @bind-Value="s.収入" Variant="Variant.Text" Margin="Margin.Dense" InputMode="InputMode.numeric" Class="num-right" /></div>
+            <div class="fcell"><span class="flabel">障害</span>
+                @障害Radio(() => s.障害, v => s.障害 = v)</div>
+            <div class="fcell"><span class="flabel">居住</span>
+                <div style="display:flex; gap:8px;">
+                    <MudCheckBox T="bool" Value="s.同居" ValueChanged="@((bool v) => On配偶者同居(v))" Size="Size.Small" Label="同居" />
+                    <MudCheckBox T="bool" Value="s.非居住者" ValueChanged="@((bool v) => On配偶者非居住(v))" Size="Size.Small" Label="非居住" />
+                </div></div>
+         </div>;
+
+    // 扶養親族1行（横並び：氏名/フリガナ/続柄/生年月日/収入種類/収入金額/障害/同居・非居住/留学・送金）。
+    RenderFragment 親族行(int n, YearEndDependent d) =>
+        @<div class="family-row">
+            <div class="family-no">親族@(n)</div>
+            <NameKanaInline Name="@d.氏名" NameChanged="@((string v) => d.氏名 = v)"
+                            Kana="@d.フリガナ" KanaChanged="@((string v) => d.フリガナ = v)" NameWidth="115px" KanaWidth="115px" />
+            <div class="fcell" style="width:70px;"><span class="flabel">続柄</span>
+                <MudTextField T="string" @bind-Value="d.続柄" Variant="Variant.Text" Margin="Margin.Dense" /></div>
+            <div class="fcell" style="width:130px;"><span class="flabel">生年月日</span>
+                <DateInput Value="@d.生年月日" ValueChanged="@((string? v) => d.生年月日 = v)" Width="130px" /></div>
+            <div class="fcell" style="width:96px;"><span class="flabel">収入種類</span>
+                @収入種類Select(() => d.収入種類, v => d.収入種類 = v)</div>
+            <div class="fcell" style="width:110px;"><span class="flabel">収入金額(円)</span>
+                <MudNumericField T="int" @bind-Value="d.収入" Variant="Variant.Text" Format="#,##0" HideSpinButtons="true"
+                                 Margin="Margin.Dense" InputMode="InputMode.numeric" Min="0" Max="99999999" Class="num-right" /></div>
+            <div class="fcell"><span class="flabel">障害</span>
+                @障害Radio(() => d.障害, v => d.障害 = v)</div>
+            <div class="fcell"><span class="flabel">居住</span>
+                <div style="display:flex; gap:8px;">
+                    <MudCheckBox T="bool" Value="d.同居" ValueChanged="@((bool v) => On親族同居(d, v))" Size="Size.Small" Label="同居" />
+                    <MudCheckBox T="bool" Value="d.非居住者" ValueChanged="@((bool v) => On親族非居住(d, v))" Size="Size.Small" Label="非居住" />
+                </div></div>
+            @if (d.非居住者)
+            {
+                <div class="fcell"><span class="flabel">留学・送金</span>
+                    <MudRadioGroup T="string" Value="@d.留学送金" ValueChanged="@((string v) => d.留学送金 = v)">
+                        <MudRadio T="string" Value='@("0")' Size="Size.Small">なし</MudRadio>
+                        <MudRadio T="string" Value='@("1")' Size="Size.Small">留学</MudRadio>
+                        <MudRadio T="string" Value='@("2")' Size="Size.Small">38万以上送金</MudRadio>
+                    </MudRadioGroup></div>
+            }
+         </div>;
+}
+
+@* 固定ヘッダー：従業員選択＋計算・保存。給与計算（F_給与処理）を踏襲。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.EventNote" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">年末調整計算</MudText>
+            </div>
+            <div class="proc-header__controls">
+                <MudSelect T="int?" Value="_number" ValueChanged="On従業員Changed" Label="従業員"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:300px;">
+                    @foreach (var t in _targets)
+                    {
+                        <MudSelectItem T="int?" Value="@t.Number">@t.No　@t.氏名 @(t.Retired ? "（退職）" : "")</MudSelectItem>
+                    }
+                </MudSelect>
+                @if (_e is not null)
+                {
+                    @* 2段構成：上段＝タイトル／下段＝データ。 *@
+                    <div class="d-flex flex-column" style="gap:0;">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="white-space:nowrap;">年末調整</MudText>
+                        <MudRadioGroup T="string" Value="_e.乙欄" ValueChanged="@((string v) => _e!.乙欄 = v)">
+                            <MudRadio T="string" Value='@("1")' Size="Size.Small">する</MudRadio>
+                            <MudRadio T="string" Value='@("2")' Size="Size.Small">未済</MudRadio>
+                            <MudRadio T="string" Value='@("3")' Size="Size.Small">乙欄</MudRadio>
+                        </MudRadioGroup>
+                    </div>
+                    <div class="d-flex flex-column" style="gap:0;">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="white-space:nowrap;">法定調書合計表</MudText>
+                        <MudCheckBox T="bool" @bind-Value="_e.源泉徴収票提出" Label="源泉徴収票を提出するもの" Size="Size.Small" />
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="proc-header__actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Calculate"
+                       OnClick="計算" Disabled="_e is null || _busy">計算</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="保存" Disabled="_e is null || _busy">保存</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+@if (_e is null)
+{
+    <MudAlert Severity="Severity.Info" Class="ma-4">従業員を選択してください。給与・賞与の年間集計を自動で取り込みます。</MudAlert>
+}
+else
+{
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mt-2" @bind-ActivePanelIndex="ActiveTab">
+
+        @* ===== 本人情報 ===== *@
+        <MudTabPanel Text="本人情報">
+          <div class="ye-personal">
+            <MudGrid Spacing="3">
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
+                        <div class="proc-section-title">本人属性</div>
+                        <div class="pay-list">
+                            <div class="pay-row">
+                                <span class="pay-row__label">住民税納付 市区町村</span>
+                                <span class="pay-row__amount" style="flex:0 0 auto;">
+                                    <MudSelect T="string" Value="_e!.住民税コード" ValueChanged="@((string v) => _e!.住民税コード = v)"
+                                               Variant="Variant.Text" Margin="Margin.Dense" Dense="true" Style="width:240px;">
+                                        @foreach (var r in _提出先)
+                                        {
+                                            <MudSelectItem T="string" Value="@r.コード">@r.値</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </span>
+                            </div>
+                            @RadioRow("障害者", () => _e!.障害, v => _e!.障害 = v, new[] { ("3", "なし"), ("1", "一般"), ("2", "特別") })
+                            @RadioRow("寡婦・ひとり親", () => _e!.寡婦, v => _e!.寡婦 = v, new[] { ("3", "なし"), ("1", "寡婦"), ("2", "ひとり親") })
+                            @CheckRow("未成年者", () => _e!.未成年, v => _e!.未成年 = v)
+                            @CheckRow("勤労学生", () => _e!.勤労学生, v => _e!.勤労学生 = v)
+                            @CheckRow("死亡退職者", () => _e!.死亡退職, v => _e!.死亡退職 = v)
+                            @CheckRow("災害者", () => _e!.災害者, v => _e!.災害者 = v)
+                            @CheckRow("外国人", () => _e!.外国人, v => _e!.外国人 = v)
+                        </div>
+                        <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">所得控除調整金（共働き）</MudText>
+                        <div class="pay-list">
+                            <div class="pay-row" style="align-items:flex-start; border-bottom:none; background-color:transparent;">
+                                <MudCheckBox T="bool" @bind-Value="_e!.所得金額調整控除適用" Size="Size.Small"
+                                             Label="給与の総額が850万円以上であり、23歳未満又は特別障害の扶養親族を有するが、夫（妻）の扶養控除を適用している" />
+                            </div>
+                            <div class="pay-row" style="justify-content:flex-end; gap:0; border-bottom:none; background-color:transparent;">
+                                <span class="pay-row__label" style="white-space:nowrap; margin-right:8px;">扶養親族の氏名</span>
+                                <span style="flex:0 0 auto; width:200px;">
+                                    <MudTextField T="string" @bind-Value="_e!.所得金額調整控除適用の扶養者氏名" Variant="Variant.Text"
+                                                  Margin="Margin.Dense" Style="width:100%;" />
+                                </span>
+                                <span class="pay-row__label" style="white-space:nowrap; margin-left:6px;">（調整）</span>
+                            </div>
+                        </div>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
+                        <div class="proc-section-title">保険料等</div>
+                        <div class="pay-list">
+                            @Money("新生命保険料支払額", () => _e!.新生命保険, v => _e!.新生命保険 = v)
+                            @Money("旧生命保険料支払額", () => _e!.生命保険, v => _e!.生命保険 = v)
+                            @Money("介護医療保険料支払額", () => _e!.介護医療保険, v => _e!.介護医療保険 = v)
+                            @Money("新個人年金保険料支払額", () => _e!.新個人年金, v => _e!.新個人年金 = v)
+                            @Money("旧個人年金保険料支払額", () => _e!.個人年金, v => _e!.個人年金 = v)
+                            @Money("申告社会保険料", () => _e!.申告社保, v => _e!.申告社保 = v)
+                            <div class="pay-row">
+                                <span class="pay-row__label" style="padding-left:1em;">内、国民年金保険料等</span>
+                                <span class="pay-row__amount">
+                                    <MudNumericField T="int" @bind-Value="_e!.国民年金保険料等" Variant="Variant.Text" Format="#,##0"
+                                                     HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric" Class="pay-num" />
+                                    <span class="pay-yen">円</span>
+                                </span>
+                            </div>
+                            @Money("地震保険料支払額", () => _e!.地震保険, v => _e!.地震保険 = v)
+                            @Money("旧長期損害保険料支払額", () => _e!.長期損害, v => _e!.長期損害 = v)
+                            @Money("小規模企業共済掛金", () => _e!.小規模共済, v => _e!.小規模共済 = v)
+                        </div>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
+                        <div class="proc-section-title">（特定増改築等）住宅借入金等特別控除</div>
+                        <div class="pay-list">
+                            <div class="pay-row" style="padding-left:0; border-bottom:none; background-color:transparent;">
+                                <span class="pay-row__label" style="font-weight:700;">住宅借入金等特別控除額</span>
+                                <span class="pay-row__amount">
+                                    <MudNumericField T="int" @bind-Value="_e!.住宅控除" Variant="Variant.Text" Format="#,##0"
+                                                     HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric" Class="pay-num" />
+                                    <span class="pay-yen">円</span>
+                                </span>
+                            </div>
+                        </div>
+                        <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">１回目（新築・購入）</MudText>
+                        <div class="pay-list">
+                            @Money("借入金年末残高", () => _e!.新築購入借入金, v => _e!.新築購入借入金 = v)
+                            @DateRow("居住開始年月日", () => _e!.新築購入居住開始, v => _e!.新築購入居住開始 = v)
+                            @CodeSelectRow("適用区分", () => _e!.新築購入適用区分, v => _e!.新築購入適用区分 = v, _適用区分1)
+                        </div>
+                        <MudText Typo="Typo.subtitle2" Class="mt-6 mb-1">２回目（増改築等）</MudText>
+                        <div class="pay-list">
+                            @Money("借入金年末残高", () => _e!.増改築借入金, v => _e!.増改築借入金 = v)
+                            @DateRow("居住開始年月日", () => _e!.増改築居住開始, v => _e!.増改築居住開始 = v)
+                            @CodeSelectRow("適用区分", () => _e!.増改築適用区分, v => _e!.増改築適用区分 = v, _適用区分2)
+                        </div>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3">
+                        <div class="proc-section-title">転職情報（中途就退職）</div>
+                        <div class="pay-list">
+                            <div class="pay-row" style="justify-content:flex-start; gap:20px; flex-wrap:wrap;">
+                                <span style="display:flex; align-items:center; gap:6px;">
+                                    <MudCheckBox T="bool" Value="_e!.就職" ValueChanged="@((bool v) => _e!.就職 = v)" Size="Size.Small" Label="就職" />
+                                    <DateInput Value="@_e!.中途就職日" ValueChanged="@((string? v) => _e!.中途就職日 = v)" Width="150px" />
+                                </span>
+                                <span style="display:flex; align-items:center; gap:6px;">
+                                    <MudCheckBox T="bool" Value="_e!.退職" ValueChanged="@((bool v) => _e!.退職 = v)" Size="Size.Small" Label="退職" />
+                                    <DateInput Value="@_e!.中途退職日" ValueChanged="@((string? v) => _e!.中途退職日 = v)" Width="150px" />
+                                </span>
+                            </div>
+                            @TextRow("前社名", () => _e!.前社の名称, v => _e!.前社の名称 = v)
+                            @TextRow("前社の所在地", () => _e!.所在地, v => _e!.所在地 = v)
+                            @DateRow("前社退職日", () => _e!.前社退職日, v => _e!.前社退職日 = v)
+                            @Money("受給額", () => _e!.前社収入, v => _e!.前社収入 = v)
+                            @Money("社会保険控除額", () => _e!.前社社保, v => _e!.前社社保 = v)
+                            @Money("源泉所得控除額", () => _e!.前社源泉, v => _e!.前社源泉 = v)
+                        </div>
+                    </MudPaper>
+                    @* 非課税通勤手当の調整：転職情報の枠の下に横一列で配置。 *@
+                    <MudPaper Elevation="1" Class="pa-4 mb-3">
+                        <div class="proc-section-title">非課税通勤手当の調整</div>
+                        <div class="pay-list">
+                            <div class="pay-row ye-hikazei" style="justify-content:flex-start; gap:16px; border-bottom:none; background-color:transparent;">
+                                <span style="display:flex; align-items:center; gap:6px; flex:0 0 auto;">
+                                    <span class="pay-row__label" style="white-space:nowrap;">非課税となる通勤手当</span>
+                                    <MudNumericField T="int" @bind-Value="_e!.非課税通勤手当金額" Variant="Variant.Text" Format="#,##0"
+                                                     Min="0" Max="9999999" HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric"
+                                                     Class="pay-num" Style="width:96px;" />
+                                    <span class="pay-yen">円</span>
+                                </span>
+                                <span class="ye-konkyo" style="display:flex; align-items:center; gap:6px;">
+                                    <span class="pay-row__label" style="white-space:nowrap;">計算根拠</span>
+                                    <MudTextField T="string" @bind-Value="_e!.非課税通勤手当算出根拠" Variant="Variant.Text"
+                                                  Margin="Margin.Dense" Style="width:100%;" />
+                                </span>
+                            </div>
+                        </div>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+          </div>
+        </MudTabPanel>
+
+        @* ===== 配偶者・扶養者情報 ===== *@
+        <MudTabPanel Text="配偶者・扶養者情報">
+          <div class="ye-personal">
+            <MudPaper Elevation="1" Class="pa-4 mb-3">
+                <div class="proc-section-title">配偶者</div>
+                <div class="family-list">
+                    @配偶者行(_e.配偶者)
+                </div>
+            </MudPaper>
+            <MudPaper Elevation="1" Class="pa-4 mb-3">
+                <div class="proc-section-title">扶養親族（最大7人）</div>
+                <div class="family-list">
+                    @for (int i = 0; i < _e.扶養親族.Length; i++)
+                    {
+                        @親族行(i + 1, _e.扶養親族[i])
+                    }
+                </div>
+            </MudPaper>
+          </div>
+        </MudTabPanel>
+
+        @* ===== 支給情報 ===== *@
+        <MudTabPanel Text="支給情報">
+            <MudGrid Spacing="3">
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3">
+                        <div class="proc-section-title">給　与</div>
+                        <MudSimpleTable Dense="true" Bordered="true" Striped="true" Class="ye-amount-table ye-monthly">
+                            <thead><tr><th>月</th><th>総支給金額</th><th>社会保険料<br />の控除額</th><th>算出税額</th></tr></thead>
+                            <tbody>
+                                @for (int i = 0; i < 12; i++)
+                                {
+                                    <tr>
+                                        <td>@(i + 1)</td>
+                                        <td class="ye-amount">@円(_e.給与[i])</td>
+                                        <td class="ye-amount">@円(_e.社保[i])</td>
+                                        <td class="ye-amount">@円(_e.源泉[i])</td>
+                                    </tr>
+                                }
+                                <tr style="font-weight:bold">
+                                    <td>計</td>
+                                    <td class="ye-amount">@円(_e.給与計)</td>
+                                    <td class="ye-amount">@円(_e.給与社保計)</td>
+                                    <td class="ye-amount">@円(_e.給与源泉計)</td>
+                                </tr>
+                            </tbody>
+                        </MudSimpleTable>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3">
+                        <div class="proc-section-title">賞　与</div>
+                        <MudSimpleTable Dense="true" Bordered="true" Striped="true" Class="ye-amount-table ye-monthly">
+                            <thead><tr><th>回</th><th>総支給金額</th><th>社会保険料<br />の控除額</th><th>算出税額</th></tr></thead>
+                            <tbody>
+                                @for (int i = 0; i < 4; i++)
+                                {
+                                    <tr>
+                                        <td>@(i + 1)</td>
+                                        <td class="ye-amount">@円(_e.賞与[i])</td>
+                                        <td class="ye-amount">@円(_e.社保賞与[i])</td>
+                                        <td class="ye-amount">@円(_e.源泉賞与[i])</td>
+                                    </tr>
+                                }
+                                <tr style="font-weight:bold">
+                                    <td>計</td>
+                                    <td class="ye-amount">@円(_e.賞与計)</td>
+                                    <td class="ye-amount">@円(_e.賞与社保計)</td>
+                                    <td class="ye-amount">@円(_e.賞与源泉計)</td>
+                                </tr>
+                            </tbody>
+                        </MudSimpleTable>
+                        <div class="pay-list mt-3">
+                            @ReadRow("給与賞与計（課税給与収入）", _e.給与賞与計)
+                            @ReadRow("源泉徴収税額計", _e.源泉計)
+                        </div>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        @* ===== 年末調整（源泉徴収簿の年末調整欄レイアウト。入力項目なし＝全て計算結果の表示） ===== *@
+        <MudTabPanel Text="年末調整">
+            <MudGrid Spacing="3">
+                <MudItem xs="12" md="8">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
+                        <div class="proc-section-title">年末調整（源泉徴収簿）</div>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">
+                            配偶者・扶養者情報および各タブの入力から自動計算した結果です（入力項目はありません）。
+                        </MudText>
+                        <MudSimpleTable Dense="true" Bordered="true" Striped="false" Class="gensen-table">
+                            <thead>
+                                <tr><th>区分</th><th style="text-align:right">金額</th><th style="text-align:right">税額</th></tr>
+                            </thead>
+                            <tbody>
+                                @簿行("給料・手当等", _e.給与計, _e.給与源泉計)
+                                @簿行("賞与等", _e.賞与計, _e.賞与源泉計)
+                                @簿行("計", _e.給与賞与計, _e.源泉計, 強調: true)
+                                @簿行("給与所得控除後の金額", _e.給与所得控除後, null)
+                                @簿行("所得金額調整控除額", _e.所得金額調整控除額, null)
+                                @簿行("給与所得控除後の金額（調整後）", _e.給与所得控除後調整控除後, null)
+                                @簿行("社会保険料等控除分（給与分）", _e.給与社保計 + _e.賞与社保計, null)
+                                @簿行("社会保険料等控除分（申告分）", _e.申告社保, null)
+                                @簿行("小規模企業共済等掛金の控除分", _e.小規模共済, null)
+                                @簿行("生命保険料の控除額", _e.生保控除, null)
+                                @簿行("地震保険料の控除額", _e.地震控除, null)
+                                @簿行("配偶者（特別）控除額", _e.配偶者特別控除, null)
+                                @簿行("特定親族特別控除額", _e.特定親族特別控除額, null)
+                                @簿行("扶養控除及び障害者等の控除額の合計額", _e.扶養控除等合計, null)
+                                @簿行("基礎控除額", _e.基礎控除, null)
+                                @簿行("所得控除額の合計額", _e.所得控除計, null, 強調: true)
+                                @簿行("差引課税給与所得金額及び算出所得税額", _e.課税所得, _e.所得税)
+                                @簿行("（特定増改築等）住宅借入金等特別控除額", null, _e.住宅控除)
+                                @簿行("年調所得税額", null, _e.年調所得税額)
+                                @簿行("年調年税額", null, _e.年調年税額, 強調: true)
+                                @簿行(_e.過不足額 >= 0 ? "差引超過額（還付）" : "差引不足額（徴収）", null, Math.Abs(_e.過不足額), 強調: true)
+                            </tbody>
+                        </MudSimpleTable>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
+                        <div class="proc-section-title">申告書転記事項</div>
+                        <div class="pay-list">
+                            <div class="pay-row">
+                                <span class="pay-row__label">所得金額調整控除の適用</span>
+                                <span class="pay-row__amount"><span class="pay-amount-text">@(_e.所得金額調整控除適用 ? "有" : "無")</span></span>
+                            </div>
+                            @ReadRow("配偶者の合計所得金額", _e.配偶者所得)
+                            @ReadRow("旧長期損害保険料支払額", _e.長期損害)
+                            @ReadRow("小規模企業共済等掛金", _e.小規模共済)
+                            @ReadRow("国民年金保険料等", _e.国民年金保険料等)
+                        </div>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudPaper Elevation="1" Class="pa-4 mb-3">
+                        <div class="proc-section-title">給与支払報告書及び源泉徴収票（摘要）欄追記文</div>
+                        <MudTextField @bind-Value="_e.源泉徴収票摘要欄追記文" Variant="Variant.Outlined" Lines="2"
+                                      MaxLength="100" Counter="100" Immediate="true"
+                                      HelperText="源泉徴収票・給与支払報告書の摘要欄に追記する文言（※全角50文字まで）" />
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    // 選択タブは回線単位で保持（別従業員へ切替えても、別画面から戻っても直前のタブを維持）。
+    private int ActiveTab { get => TabState.Get("yearend-employee"); set => TabState.Set("yearend-employee", value); }
+    private IReadOnlyList<YearEndTarget> _targets = Array.Empty<YearEndTarget>();
+    private IReadOnlyList<CodeOption> _提出先 = Array.Empty<CodeOption>();
+    private IReadOnlyList<CodeOption> _適用区分1 = Array.Empty<CodeOption>();   // 住宅借入金 1回目（現行 003）
+    private IReadOnlyList<CodeOption> _適用区分2 = Array.Empty<CodeOption>();   // 住宅借入金 2回目（現行 004）
+    private IReadOnlyList<CodeOption> _収入種類 = Array.Empty<CodeOption>();    // 配偶者・扶養親族の収入種類（現行 002＝空/給与/年金/所得）
+    private int? _number;
+    private YearEndEntry? _e;
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _targets = Db.LoadYearEndTargets();
+        _提出先 = Db.GetRecipientOptions();
+        _適用区分1 = Db.GetCodeOptions("003");
+        _適用区分2 = Db.GetCodeOptions("004");
+        _収入種類 = Db.GetCodeOptions("002");
+
+        // 初期表示は先頭の従業員の内容を表示する。
+        var first = _targets.FirstOrDefault();
+        if (first is not null)
+        {
+            _number = first.Number;
+            _e = Db.LoadYearEnd(first.Number);
+        }
+    }
+
+
+    private void On従業員Changed(int? n)
+    {
+        _number = n;
+        _e = n is null ? null : Db.LoadYearEnd(n.Value);
+    }
+
+    // 配偶者の同居/非居住は排他（現行：どちらか一方）。
+    private void On配偶者同居(bool v) { var s = _e!.配偶者; s.同居 = v; if (v) s.非居住者 = false; }
+    private void On配偶者非居住(bool v) { var s = _e!.配偶者; s.非居住者 = v; if (v) s.同居 = false; }
+
+    // 扶養親族の同居/非居住は排他。非居住を外したら留学送金区分は「なし」へ戻す（現行：非居住時のみ留学/送金が有効）。
+    private void On親族同居(YearEndDependent d, bool v) { d.同居 = v; if (v) { d.非居住者 = false; d.留学送金 = "0"; } }
+    private void On親族非居住(YearEndDependent d, bool v) { d.非居住者 = v; if (v) d.同居 = false; else d.留学送金 = "0"; }
+
+    // 現行 F_年調_従業員情報 cmdKousin_Click の検証＋計算（給与計＜0／給与賞与計＞2千万／退職時の確認）を踏襲。
+    // Web版は計算と保存を分けているため、計算ボタンは検証と再計算・結果反映までを行い、保存はしない。
+    private async Task 計算()
+    {
+        if (_e is null) return;
+        _busy = true;
+        try
+        {
+            if (!await 検証して再集計()) return;
+            Db.ComputeYearEnd(_e);
+            Snackbar.Add("計算しました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"計算に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task 保存()
+    {
+        if (_e is null) return;
+        _busy = true;
+        try
+        {
+            if (!await 検証して再集計()) return;
+            Db.ComputeYearEnd(_e);   // 保存前に最新の入力で再計算
+            Db.SaveYearEnd(_e);
+            Snackbar.Add($"{_targets.FirstOrDefault(t => t.Number == _e.Number)?.氏名} さんの年末調整を保存しました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    /// <summary>入力検証と「計」の再集計。問題なければ true。現行 cmdKousin_Click のメッセージ・分岐に対応。</summary>
+    private async Task<bool> 検証して再集計()
+    {
+        if (_e is null) return false;
+
+        // 配偶者・扶養親族：氏名/フリガナがあるのに生年月日が空ならエラー（現行 NM015E）。
+        if ((!string.IsNullOrEmpty(_e.配偶者.氏名) || !string.IsNullOrEmpty(_e.配偶者.フリガナ))
+            && string.IsNullOrEmpty(_e.配偶者.生年月日))
+        {
+            Snackbar.Add("配偶者の生年月日を入力してください。", Severity.Error);
+            return false;
+        }
+        for (int i = 0; i < _e.扶養親族.Length; i++)
+        {
+            var d = _e.扶養親族[i];
+            if ((!string.IsNullOrEmpty(d.氏名) || !string.IsNullOrEmpty(d.フリガナ)) && string.IsNullOrEmpty(d.生年月日))
+            {
+                Snackbar.Add($"扶養親族{i + 1}の生年月日を入力してください。", Severity.Error);
+                return false;
+            }
+        }
+
+        // 前社収入・非課税通勤手当の手入力を「計」へ反映してから金額検証する。
+        Db.RecomputeYearEndTotals(_e);
+
+        // 給与計がマイナス（非課税通勤手当が支給給与より大きい）はエラー（現行 NM022E）。
+        if (_e.給与計 < 0)
+        {
+            Snackbar.Add("非課税となる通勤手当が支給給与より大きい値は入力できません。", Severity.Error);
+            return false;
+        }
+
+        // 年末調整する かつ 給与賞与計が2千万円超 → 確定申告が必要。未済へ変更（現行 NM016E）。
+        if (_e.乙欄 == "1" && _e.給与賞与計 > 20_000_000)
+        {
+            Snackbar.Add("年間給与額が2千万を超えています。確定申告が必要です。", Severity.Error);
+            _e.乙欄 = "2";
+            return false;
+        }
+
+        // 退職者かつ年末調整する → 実行確認（現行 NM004W）。
+        if (_e.乙欄 == "1" && _e.退職)
+        {
+            bool? ok = await Dialog.ShowMessageBoxAsync(
+                "確認", "退職者ですが、年調してもよろしいですか？", yesText: "はい", cancelText: "いいえ");
+            if (ok != true) return false;
+        }
+
+        return true;
+    }
+}

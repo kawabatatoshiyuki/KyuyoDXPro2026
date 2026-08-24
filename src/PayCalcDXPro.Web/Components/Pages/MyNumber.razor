@@ -1,0 +1,166 @@
+@page "/setup/mynumber"
+@using PayCalcDXPro.Data.MyNumber
+@using PayCalcDXPro.Data.Employee
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+
+<PageTitle>マイナンバー登録｜給与計算DXPro</PageTitle>
+
+@* セキュリティアカウント未設定時は操作不可（現行 F_menu.B_myno_Click の AccountInfo チェック＝メッセージ DN006E）。 *@
+@if (!_securityOk)
+{
+    <MudPaper Elevation="1" Class="ma-4 pa-6" Style="max-width:720px;">
+        <div class="d-flex align-center mb-2" style="gap:10px;">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Warning" Size="Size.Large" />
+            <MudText Typo="Typo.h6">マイナンバーを取り扱うには設定が必要です</MudText>
+        </div>
+        <MudText Typo="Typo.body1" Class="mb-1">
+            マイナンバーを取り扱うには、<strong>セキュリティアカウントの設定</strong>が必要です。
+        </MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            設定すると、権限のある方のみがログインしてマイナンバーを扱えるようになり、誰がいつ操作したかがアクセスログに記録されます。
+        </MudText>
+        <MudButton Href="/settings/account" Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Lock">セキュリティアカウント設定へ</MudButton>
+    </MudPaper>
+}
+else
+{
+
+@* 固定ヘッダー：従業員選択＋保存。給与計算・年末調整と共通の見た目。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.Badge" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">マイナンバー登録</MudText>
+            </div>
+            <div class="proc-header__controls">
+                <MudSelect T="int?" Value="_number" ValueChanged="On従業員Changed" Label="従業員"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:300px;">
+                    @foreach (var t in _targets)
+                    {
+                        <MudSelectItem T="int?" Value="@t.Number">@t.No　@t.氏名 @(t.退職 ? "（退職）" : "")</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+        </div>
+        <div class="proc-header__actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="保存" Disabled="_view is null || _busy">保存</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+@if (_view is null)
+{
+    <MudAlert Severity="Severity.Info" Class="ma-4">従業員を選択してください。</MudAlert>
+}
+else
+{
+    <MudPaper Elevation="1" Class="pa-4 ma-2">
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">
+            マイナンバーは機微情報です。取扱いに十分ご注意ください。配偶者・扶養親族は<strong>年末調整で氏名を登録済みの方のみ</strong>入力できます。
+        </MudAlert>
+        <div class="pay-list">
+            @for (int i = 0; i < _values.Length; i++)
+            {
+                var idx = i;
+                var slot = _view.スロット[idx];
+                <div class="pay-row" style="min-height:48px;">
+                    <span class="pay-row__label" style="display:flex; flex-direction:row; align-items:baseline; gap:12px;">
+                        <span style="min-width:5.5em; font-weight:600;">@slot.種別</span>
+                        <span style="font-size:.9rem; color:var(--mud-palette-text-secondary);">
+                            @(slot.登録済 ? (string.IsNullOrEmpty(slot.氏名) ? "（氏名未設定）" : slot.氏名) : "未登録")
+                        </span>
+                    </span>
+                    <span class="pay-row__amount" style="flex:0 0 auto;">
+                        <MudTextField T="string" Value="_values[idx]" ValueChanged="@((string v) => OnValueChanged(idx, v))"
+                                      Disabled="!slot.登録済" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      MaxLength="12" InputMode="InputMode.numeric" Style="width:200px;"
+                                      Error="_errors.Contains(idx)" ErrorText="12桁の正しい個人番号を入力してください"
+                                      Placeholder="12桁" Class="mn-input" />
+                    </span>
+                </div>
+            }
+        </div>
+    </MudPaper>
+}
+
+}
+
+@code {
+    private IReadOnlyList<EmployeeListItem> _targets = Array.Empty<EmployeeListItem>();
+    private bool _securityOk;
+    private int? _number;
+    private MyNumberView? _view;
+    private string[] _values = Array.Empty<string>();
+    private readonly HashSet<int> _errors = new();
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        _securityOk = Db.SecurityAccountExists();
+        if (!_securityOk) return;   // セキュリティアカウント未設定時は読み込まず操作不可。
+
+        _targets = Db.ListEmployees();
+        var first = _targets.FirstOrDefault();
+        if (first is not null)
+        {
+            _number = first.Number;
+            Load(first.Number);
+        }
+    }
+
+    private void On従業員Changed(int? n)
+    {
+        _number = n;
+        if (n is null) { _view = null; return; }
+        Load(n.Value);
+    }
+
+    private void Load(int number)
+    {
+        _errors.Clear();
+        _view = Db.LoadMyNumber(number);
+        _values = _view.スロット.Select(s => s.値).ToArray();
+    }
+
+    // 数字以外は受け付けない（現行：数値のみ入力可）。
+    private void OnValueChanged(int index, string v)
+    {
+        _values[index] = new string((v ?? "").Where(char.IsDigit).ToArray());
+        _errors.Remove(index);
+    }
+
+    private void 保存()
+    {
+        if (_view is null || _number is null) return;
+        _busy = true;
+        try
+        {
+            var invalid = Db.SaveMyNumber(_number.Value, _values);
+            _errors.Clear();
+            if (invalid.Count > 0)
+            {
+                foreach (var i in invalid) _errors.Add(i);
+                Snackbar.Add("個人番号の形式に誤りがあります。赤枠の項目をご確認ください。", Severity.Error);
+                return;
+            }
+            Snackbar.Add($"{_view.従業員氏名} さんのマイナンバーを保存しました。", Severity.Success);
+            MoveNext();
+        }
+        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    // 現行：保存後に次の従業員へ。末尾なら先頭へ。
+    private void MoveNext()
+    {
+        if (_targets.Count == 0) return;
+        int cur = _targets.ToList().FindIndex(t => t.Number == _number);
+        int next = (cur < 0 || cur >= _targets.Count - 1) ? 0 : cur + 1;
+        _number = _targets[next].Number;
+        Load(_number.Value);
+    }
+}

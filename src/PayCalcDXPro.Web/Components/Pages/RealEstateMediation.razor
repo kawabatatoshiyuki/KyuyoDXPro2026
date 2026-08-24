@@ -1,0 +1,364 @@
+@page "/year-end/realestate-mediation"
+@using PayCalcDXPro.Data.YearEnd
+@using PayCalcDXPro.Data.MyNumber
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>不動産等の売買又は貸付けのあっせん手数料の支払調書｜給与計算DXPro</PageTitle>
+
+@* 明細テーブル（2つ）：文字列列は左詰め、数量・金額は右詰め。 *@
+<style>
+    .rem-fee th, .rem-fee td, .rem-prop th, .rem-prop td { text-align: left; }
+    .rem-fee th.num, .rem-fee td.num, .rem-prop th.num, .rem-prop td.num { text-align: right; }
+    .rem-fee td input, .rem-prop td input { text-align: left !important; }
+    .rem-fee td.num input, .rem-prop td.num input { text-align: right !important; }
+    /* あっせん手数料の明細：1区分(残り幅)／2支払確定年月日／3支払金額 */
+    .rem-fee th:nth-child(1), .rem-fee td:nth-child(1) { width: 100%; min-width: 14em; }
+    .rem-fee th:nth-child(2), .rem-fee td:nth-child(2) { width: 13em; min-width: 13em; }
+    .rem-fee th:nth-child(3), .rem-fee td:nth-child(3) { width: 12em; min-width: 12em; }
+    /* あっせんに係る不動産等の明細：1物件の種類／2物件の所在地(残り幅)／3数量／4取引金額 */
+    .rem-prop th:nth-child(1), .rem-prop td:nth-child(1) { width: 10em; min-width: 10em; }
+    .rem-prop th:nth-child(2), .rem-prop td:nth-child(2) { width: 100%; min-width: 14em; }
+    .rem-prop th:nth-child(3), .rem-prop td:nth-child(3) { width: 8em; min-width: 8em; }
+    .rem-prop th:nth-child(4), .rem-prop td:nth-child(4) { width: 12em; min-width: 12em; }
+    /* 法人／個人の区分ラジオを横並びに（不動産譲受と同じ対策）。 */
+    .pay-row .mud-radio-group {
+        display: flex !important; flex-direction: row !important; align-items: center; flex-wrap: wrap; column-gap: 1.25rem;
+    }
+    .pay-row .mud-radio-group > .mud-input-control {
+        flex: 0 0 auto !important; width: auto !important; max-width: none !important;
+    }
+    .re-kbn-radio { flex: 0 0 auto !important; width: auto !important; }
+    /* 2カラムレイアウト：左列(氏名等)は狭く、右列(住所等)を広く。画面幅で1カラムに落ちる。 */
+    .pay-list.pay-list--2col { display: grid; grid-template-columns: minmax(12em, 1fr) minmax(20em, 2fr); column-gap: 1.75rem; align-items: start; }
+    .pay-list.pay-list--2col > .pay-row--full { grid-column: 1 / -1; }
+    .pay-list.pay-list--2col .pay-row__label { flex-shrink: 0; }
+    @@media (max-width: 960px) {
+        .pay-list.pay-list--2col { grid-template-columns: 1fr; }
+    }
+</style>
+
+@* 固定ヘッダー：整理番号選択＋新規＋保存/削除。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar proc-header__bar--stacked">
+        <div class="proc-header__title">
+            <MudIcon Icon="@Icons.Material.Filled.Handshake" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">不動産等の売買又は貸付けのあっせん手数料の支払調書</MudText>
+        </div>
+        <div class="proc-header__main">
+            <div class="proc-header__controls">
+                <MudSelect T="int?" Value="_selectedNo" ValueChanged="On整理番号Changed" Label="整理番号"
+                           Variant="Variant.Outlined" Dense="true" Style="min-width:280px;" Clearable="true">
+                    @foreach (var t in _list)
+                    {
+                        <MudSelectItem T="int?" Value="@t.No">@t.No　@t.名称</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="新規">新規</MudButton>
+            </div>
+            <div class="proc-header__actions">
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete"
+                           OnClick="削除" Disabled="_e.No <= 0 || _busy">削除</MudButton>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Print"
+                           Href="@(_e.No > 0 ? $"/year-end/realestate-mediation/pdf?no={_e.No}" : null)" Target="_blank"
+                           Disabled="_e.No <= 0">印刷</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                           OnClick="保存" Disabled="_busy">@(_e.No <= 0 ? "登録" : "更新")</MudButton>
+            </div>
+        </div>
+    </div>
+</MudPaper>
+
+@* 提出要否：DB列は「不要」のままで、UIは「提出する」＝チェックで提出（不要=false）に反転。 *@
+<MudPaper Elevation="1" Class="mx-2 mt-2 px-4 py-2 d-flex align-center flex-wrap gap-6">
+    <MudCheckBox T="bool" Value="@(!_e.不要)" ValueChanged="@((bool v) => _e.不要 = !v)"
+                 Label="支払調書を提出する" Color="Color.Primary" Dense="true" />
+</MudPaper>
+
+<MudGrid Spacing="2" Class="pa-2">
+    @* 支払を受ける者（氏名(狭)／住所(広)の2カラム＋区分ラジオ全幅） *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">支払を受ける者</div>
+            <div class="pay-list pay-list--2col">
+                <div class="pay-row pay-row--required">
+                    <span class="pay-row__label">氏名又は名称</span>
+                    <span class="pay-row__amount pay-row__amount--grow">
+                        <MudTextField @bind-Value="_e.名称" Variant="Variant.Text" Margin="Margin.Dense"
+                                      Required="true" RequiredError="氏名又は名称を入力してください。" />
+                    </span>
+                </div>
+                <div class="pay-row">
+                    <span class="pay-row__label">住所（居所）又は所在地</span>
+                    <span class="pay-row__amount pay-row__amount--grow">
+                        <MudTextField @bind-Value="_e.所在地" Variant="Variant.Text" Margin="Margin.Dense" />
+                    </span>
+                </div>
+                @NumberBlock()
+            </div>
+
+            @* 支払を受ける者の明細（2行：区分・支払確定年月日・支払金額） *@
+            <div class="ye-amount-scroll mt-3">
+                <MudSimpleTable Dense="true" Bordered="true" Class="ye-amount-table rem-fee">
+                    <thead>
+                        <tr>
+                            <th>区分</th>
+                            <th>支払確定年月日</th>
+                            <th class="num">支払金額</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int k = 0; k < 2; k++)
+                        {
+                            var i = k;
+                            <tr>
+                                <td>
+                                    <MudAutocomplete T="string" @bind-Value="_e.区分[i]" SearchFunc="Search区分"
+                                                     Variant="Variant.Text" Margin="Margin.Dense" Dense="true"
+                                                     CoerceValue="true" Clearable="true" ResetValueOnEmptyText="false"
+                                                     Placeholder="譲渡 等" />
+                                </td>
+                                @* DB列は「取得年月日」だが現行フォームの表示ラベルは「支払確定年月日」 *@
+                                <td><DateInput Value="@Ymd(_e.取得年月日[i])" ValueChanged="@((string? v) => _e.取得年月日[i] = ParseYmd(v))" Width="150px" /></td>
+                                <td class="num">@Num(() => _e.支払金額[i], v => _e.支払金額[i] = v)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            </div>
+            <MudText Typo="Typo.caption" Class="mt-1">区分の例：@string.Join("・", RealEstateMediationRepository.区分候補)（一覧から選択・自由入力可）。</MudText>
+        </MudPaper>
+    </MudItem>
+
+    @* あっせんに係る不動産等（2行：物件の種類・物件の所在地・数量・取引金額） *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">あっせんに係る不動産等</div>
+            <div class="ye-amount-scroll">
+                <MudSimpleTable Dense="true" Bordered="true" Class="ye-amount-table rem-prop">
+                    <thead>
+                        <tr>
+                            <th>物件の種類</th>
+                            <th>物件の所在地</th>
+                            <th class="num">数量</th>
+                            <th class="num">取引金額</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int k = 0; k < 2; k++)
+                        {
+                            var i = k;
+                            <tr>
+                                <td>
+                                    <MudAutocomplete T="string" @bind-Value="_e.物件の種類区分[i]" SearchFunc="Search物件種類"
+                                                     Variant="Variant.Text" Margin="Margin.Dense" Dense="true"
+                                                     CoerceValue="true" Clearable="true" ResetValueOnEmptyText="false"
+                                                     Placeholder="土地 等" />
+                                </td>
+                                <td><MudTextField @bind-Value="_e.物件の所在地[i]" Variant="Variant.Text" Margin="Margin.Dense" /></td>
+                                <td class="num"><MudTextField @bind-Value="_e.数量[i]" Variant="Variant.Text" Margin="Margin.Dense" /></td>
+                                @* DB列は「取得金額」だが現行フォームの表示ラベルは「取引金額」 *@
+                                <td class="num">@Num(() => _e.取得金額[i], v => _e.取得金額[i] = v)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            </div>
+            <MudText Typo="Typo.caption" Class="mt-1">物件の種類の例：@string.Join("・", RealEstateMediationRepository.物件の種類候補)（一覧から選択・自由入力可）。</MudText>
+        </MudPaper>
+    </MudItem>
+
+    @* 摘要（3行） *@
+    <MudItem xs="12">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">摘要</div>
+            <div class="pay-list">
+                @for (int k = 0; k < 3; k++)
+                {
+                    var i = k;
+                    <div class="pay-row">
+                        <span class="pay-row__label">摘要（@(i + 1)）</span>
+                        <span class="pay-row__amount pay-row__amount--grow">
+                            <MudTextField @bind-Value="_e.摘要[i]" Variant="Variant.Text" Margin="Margin.Dense" />
+                        </span>
+                    </div>
+                }
+            </div>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private IReadOnlyList<RealEstateMediationListItem> _list = Array.Empty<RealEstateMediationListItem>();
+    private int? _selectedNo;
+    private RealEstateMediationRecord _e = new();
+    private bool _busy;
+    private bool _番号エラー;
+    private string _番号エラーText = "";
+
+    // 物件の種類・区分は現行 F_年調_不動産あっせん の ComboBox（編集可能なドロップダウン＝一覧選択＋自由入力）を移植。
+    private Task<IEnumerable<string>> Search物件種類(string value, System.Threading.CancellationToken token)
+        => SearchIn(RealEstateMediationRepository.物件の種類候補, value);
+    private Task<IEnumerable<string>> Search区分(string value, System.Threading.CancellationToken token)
+        => SearchIn(RealEstateMediationRepository.区分候補, value);
+
+    private static Task<IEnumerable<string>> SearchIn(IReadOnlyList<string> candidates, string value)
+    {
+        IEnumerable<string> all = candidates;
+        if (!string.IsNullOrWhiteSpace(value))
+            all = all.Where(k => k.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(all);
+    }
+
+    // 支払を受ける者の個人番号／法人番号の入力。
+    private RenderFragment NumberBlock() =>
+        @<text>
+            <div class="pay-row pay-row--full">
+                <span class="pay-row__label">法人／個人の区分</span>
+                <span class="pay-row__amount pay-row__amount--grow d-flex align-center flex-wrap gap-6">
+                    <MudRadioGroup T="string" Class="re-kbn-radio" Value="@_e.支払受者区分"
+                                   ValueChanged="On区分Changed">
+                        <MudRadio T="string" Value="@("1")" Color="Color.Primary" Dense="true">法人</MudRadio>
+                        <MudRadio T="string" Value="@("2")" Color="Color.Primary" Dense="true">個人（個人事業主）</MudRadio>
+                    </MudRadioGroup>
+                    @if (_e.支払受者区分 == "2")
+                    {
+                        <span class="d-flex align-center gap-2">
+                            <span class="pay-row__label" style="width:auto;">個人番号（マイナンバー）</span>
+                            <span style="font-family:monospace;">@Masked(_e.支払受者番号)</span>
+                            <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Badge"
+                                       OnClick="OpenMyNumberDialog">個人番号を入力</MudButton>
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="d-flex align-center gap-2">
+                            <span class="pay-row__label" style="width:auto;">法人番号（13桁）</span>
+                            <MudTextField T="string" @bind-Value="_e.支払受者番号"
+                                          Variant="Variant.Text" Margin="Margin.Dense" Style="width:14em;"
+                                          MaxLength="13" InputMode="InputMode.numeric"
+                                          Error="_番号エラー" ErrorText="@_番号エラーText" />
+                        </span>
+                    }
+                </span>
+            </div>
+         </text>;
+
+    private RenderFragment Num(Func<int?> get, Action<int?> set) =>
+        @<div class="ye-cell-amount">
+            <MudNumericField T="int?" Value="get()" ValueChanged="@((int? v) => set(v))" Variant="Variant.Text"
+                             Format="#,##0" HideSpinButtons="true" Margin="Margin.Dense" InputMode="InputMode.numeric" Min="0"
+                             Class="ye-num ye-num--wide" />
+            <span class="pay-yen">円</span>
+         </div>;
+
+    // 年月日入力（DateInput＝西暦8桁/和暦7桁で入力）とモデルの DateTime? を相互変換する。
+    private static string? Ymd(DateTime? d) => d?.ToString("yyyy/MM/dd");
+    private static DateTime? ParseYmd(string? v)
+        => DateTime.TryParse(v, System.Globalization.CultureInfo.InvariantCulture,
+                             System.Globalization.DateTimeStyles.None, out var d) ? d : null;
+
+    // 個人番号は末尾4桁のみ表示、他はマスク。未登録は「未登録」。
+    private static string Masked(string? number)
+    {
+        string n = number ?? "";
+        if (string.IsNullOrEmpty(n)) return "未登録";
+        if (n.Length <= 4) return new string('●', n.Length);
+        return new string('●', n.Length - 4) + n[^4..];
+    }
+
+    private async Task OpenMyNumberDialog()
+    {
+        string current = _e.支払受者番号;
+        Db.LogRealEstateMediationMyNumberView(current ?? "");
+        var parameters = new DialogParameters { ["Current"] = current ?? "" };
+        var dialog = await Dialog.ShowAsync<Components.Shared.MyNumberInputDialog>("個人番号の入力", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data is string v)
+        {
+            _e.支払受者番号 = v; _番号エラー = false;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        _list = Db.ListRealEstateMediations();
+        新規();
+    }
+
+    private void On整理番号Changed(int? no)
+    {
+        _selectedNo = no;
+        if (no is null) { 新規(); return; }
+        _e = Db.LoadRealEstateMediation(no.Value) ?? new RealEstateMediationRecord();
+        _番号エラー = false;
+    }
+
+    private void 新規()
+    {
+        _selectedNo = null;
+        _e = new RealEstateMediationRecord { 支払受者区分 = "1", 不要 = true };
+        _番号エラー = false;
+    }
+
+    private void On区分Changed(string kubun)
+    {
+        _e.支払受者区分 = kubun == "2" ? "2" : "1";
+        _e.支払受者番号 = "";
+        _番号エラー = false;
+    }
+
+    private bool 番号Valid(string 区分, string 番号)
+    {
+        string n = 番号 ?? "";
+        if (n.Length == 0) return true; // 未入力は許容
+        if (区分 == "2") return MyNumberValidator.IsValid(n);       // 個人番号＝12桁＋チェックデジット
+        return n.All(char.IsDigit) && n.Length == 13;               // 法人番号＝13桁
+    }
+
+    private void 保存()
+    {
+        if (string.IsNullOrWhiteSpace(_e.名称)) { Snackbar.Add("氏名又は名称を入力してください。", Severity.Warning); return; }
+
+        _番号エラー = !番号Valid(_e.支払受者区分, _e.支払受者番号);
+        if (_番号エラー)
+        {
+            _番号エラーText = _e.支払受者区分 == "2" ? "個人番号（12桁・チェックデジット）が正しくありません。" : "13桁の法人番号を入力してください。";
+            Snackbar.Add("番号の入力内容を確認してください。", Severity.Error);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            int no = Db.SaveRealEstateMediation(_e);
+            _list = Db.ListRealEstateMediations();
+            _selectedNo = no;
+            _e.No = no;
+            Snackbar.Add($"整理番号 {no} を保存しました。", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task 削除()
+    {
+        if (_e.No <= 0) return;
+        bool? ok = await Dialog.ShowMessageBoxAsync("確認", $"整理番号 {_e.No}（{_e.名称}）を削除します。よろしいですか？",
+            yesText: "削除する", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        try
+        {
+            Db.DeleteRealEstateMediation(_e.No, _e.支払受者番号);
+            _list = Db.ListRealEstateMediations();
+            Snackbar.Add("削除しました。", Severity.Success);
+            新規();
+        }
+        catch (Exception ex) { Snackbar.Add($"削除に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+}

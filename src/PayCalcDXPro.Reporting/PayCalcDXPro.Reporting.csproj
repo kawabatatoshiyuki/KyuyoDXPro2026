@@ -1,0 +1,70 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\PayCalcDXPro.Domain\PayCalcDXPro.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <PackageReference Include="QuestPDF" Version="2026.6.0" />
+    <PackageReference Include="PdfSharp" Version="6.1.1" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 法定調書合計表の様式アセット（DLLに同梱＝実行時は外部ファイル・外部プロセス不要）。
+         テンプレ(xlsx)＝座標抽出元、背景PDF＝官製様式の罫線・ラベル。背景PDFはテンプレのマーカーを
+         消して開発機のLibreOfficeでPDF化したもの（再生成手順は docs/帳票方式比較.md）。 -->
+    <EmbeddedResource Include="Assets\R_合計表.xlsx" LogicalName="PayCalcDXPro.Reporting.Assets.LegalRecordTemplate.xlsx" />
+    <EmbeddedResource Include="Assets\R_合計表_背景.pdf" LogicalName="PayCalcDXPro.Reporting.Assets.LegalRecordBackground.pdf" />
+    <!-- 退職所得の源泉徴収票・特別徴収票（現行 R_退職源泉）。4面付け＝1レコードにつき1ページに4枚。
+         テンプレ(xlsx)＝プレースホルダ「**…」の座標抽出元、背景PDF＝マーカーを消した官製様式。 -->
+    <EmbeddedResource Include="Assets\R_退職源泉.xlsx" LogicalName="PayCalcDXPro.Reporting.Assets.RetirementTemplate.xlsx" />
+    <EmbeddedResource Include="Assets\R_退職源泉_背景.pdf" LogicalName="PayCalcDXPro.Reporting.Assets.RetirementBackground.pdf" />
+    <!-- 報酬、料金、契約金及び賞金の支払調書（現行 R_報酬）。A4縦4面付け＝1レコードにつき1ページに4枚。
+         テンプレ(xlsx)＝プレースホルダ「**…」の座標抽出元、背景PDF＝マーカーを消した官製様式。 -->
+    <EmbeddedResource Include="Assets\R_報酬.xlsx" LogicalName="PayCalcDXPro.Reporting.Assets.RewardTemplate.xlsx" />
+    <EmbeddedResource Include="Assets\R_報酬_背景.pdf" LogicalName="PayCalcDXPro.Reporting.Assets.RewardBackground.pdf" />
+    <!-- 不動産の使用料等の支払調書（現行 R_不動産）。A4横4面付け＝1レコードにつき1ページに4枚。
+         テンプレ(xlsx)＝プレースホルダ「**…」の座標抽出元、背景PDF＝マーカーを消した官製様式。 -->
+    <EmbeddedResource Include="Assets\R_不動産.xlsx" LogicalName="PayCalcDXPro.Reporting.Assets.RealEstateTemplate.xlsx" />
+    <EmbeddedResource Include="Assets\R_不動産_背景.pdf" LogicalName="PayCalcDXPro.Reporting.Assets.RealEstateBackground.pdf" />
+    <!-- 不動産等の譲受けの対価の支払調書（現行 R_不動産譲受）。A4横4面付け＝1レコードにつき1ページに4枚。
+         テンプレ(xlsx)＝プレースホルダ「**…」の座標抽出元、背景PDF＝マーカーを消した官製様式。 -->
+    <EmbeddedResource Include="Assets\R_不動産譲受.xlsx" LogicalName="PayCalcDXPro.Reporting.Assets.RealEstateTransferTemplate.xlsx" />
+    <EmbeddedResource Include="Assets\R_不動産譲受_背景.pdf" LogicalName="PayCalcDXPro.Reporting.Assets.RealEstateTransferBackground.pdf" />
+    <!-- 不動産等の売買又は貸付けのあっせん手数料の支払調書（現行 R_不動産あっせん）。A4横4面付け＝1レコードにつき1ページに4枚。
+         テンプレ(xlsx)＝プレースホルダ「**…」の座標抽出元、背景PDF＝マーカーを消した官製様式。 -->
+    <EmbeddedResource Include="Assets\R_不動産あっせん.xlsx" LogicalName="PayCalcDXPro.Reporting.Assets.RealEstateMediationTemplate.xlsx" />
+    <EmbeddedResource Include="Assets\R_不動産あっせん_背景.pdf" LogicalName="PayCalcDXPro.Reporting.Assets.RealEstateMediationBackground.pdf" />
+    <!-- 給与所得の源泉徴収票（現行 R_源泉徴収票）。A4縦1面。テンプレ(xlsx)＝プレースホルダ「**…」の座標抽出元、
+         背景PDF＝マーカーを消した官製様式（源泉徴収票PDF出力用シート）。215マーカーの大型様式。 -->
+    <EmbeddedResource Include="Assets\R_源泉徴収票.xlsx" LogicalName="PayCalcDXPro.Reporting.Assets.WithholdingSlipTemplate.xlsx" />
+    <EmbeddedResource Include="Assets\R_源泉徴収票_背景.pdf" LogicalName="PayCalcDXPro.Reporting.Assets.WithholdingSlipBackground.pdf" />
+
+    <!-- 給与支払報告書（個人別明細書）（現行 R_給与支払報告書）。A4横2面。源泉徴収票とマーカー78/80共通のため値組立はビルダー共用。 -->
+    <EmbeddedResource Include="Assets\R_給与支払報告書.xlsx" LogicalName="PayCalcDXPro.Reporting.Assets.PayReportTemplate.xlsx" />
+    <EmbeddedResource Include="Assets\R_給与支払報告書_背景.pdf" LogicalName="PayCalcDXPro.Reporting.Assets.PayReportBackground.pdf" />
+
+    <!-- 源泉徴収簿（現行 R_徴収簿）。A4横1面（1従業員＝1ページ）。テンプレ(xlsx)＝プレースホルダ「**…」の座標抽出元、
+         背景PDF＝マーカー(232個)を消した官製様式（給料・賞与の月別欄／年末調整欄／定額減税欄を含む）。 -->
+    <EmbeddedResource Include="Assets\R_徴収簿.xlsx" LogicalName="PayCalcDXPro.Reporting.Assets.WithholdingLedgerTemplate.xlsx" />
+    <EmbeddedResource Include="Assets\R_徴収簿_背景.pdf" LogicalName="PayCalcDXPro.Reporting.Assets.WithholdingLedgerBackground.pdf" />
+
+    <!-- 年末調整 集計表（現行 R_集計表・納付書用）。A4縦1面。テンプレ(xlsx)＝マーカー座標抽出元、
+         背景PDF＝マーカー(17個)を消した様式（納付書の記載例＋年末調整額明細の左右グリッド）。 -->
+    <EmbeddedResource Include="Assets\R_集計表.xlsx" LogicalName="PayCalcDXPro.Reporting.Assets.SummaryTemplate.xlsx" />
+    <EmbeddedResource Include="Assets\R_集計表_背景.pdf" LogicalName="PayCalcDXPro.Reporting.Assets.SummaryBackground.pdf" />
+
+    <!-- 年末調整 給与支払報告書（総括表）（現行 R_総括表）。A4横1面・4面付け（提出先4件を各象限に）。
+         テンプレ(xlsx)＝マーカー座標抽出元、背景PDF＝マーカーを消した官製様式。 -->
+    <EmbeddedResource Include="Assets\R_総括表.xlsx" LogicalName="PayCalcDXPro.Reporting.Assets.PayReportSummaryTemplate.xlsx" />
+    <EmbeddedResource Include="Assets\R_総括表_背景.pdf" LogicalName="PayCalcDXPro.Reporting.Assets.PayReportSummaryBackground.pdf" />
+  </ItemGroup>
+
+</Project>

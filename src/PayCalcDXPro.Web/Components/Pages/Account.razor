@@ -1,0 +1,154 @@
+@page "/settings/account"
+@inject LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject NavigationManager Nav
+
+<PageTitle>セキュリティアカウント設定｜給与計算DXPro</PageTitle>
+
+<style>
+    .acc-desc { background:var(--mud-palette-background-grey); border-radius:8px; padding:12px 16px;
+                font-size:0.85rem; line-height:1.6; color:var(--mud-palette-text-secondary); }
+    .acc-status { font-size:0.9rem; }
+</style>
+
+@* 固定ヘッダー。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">セキュリティアカウント設定</MudText>
+            </div>
+        </div>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="3" Class="pa-2">
+    <MudItem xs="12">
+        <div class="acc-desc">
+            起動時のログインに使うアカウントを設定します。設定すると、次回アクセス時から<strong>アカウントID・パスワードの入力が必須</strong>になります。
+            パスワードは暗号化（ハッシュ化）して保存され、元のパスワードは表示できません。
+            このアカウントは<strong>権限のある方で共有して利用でき</strong>、実際に誰が操作したかは<strong>ログイン時に入力する操作者名</strong>としてアクセスログに記録されます（下の設定者名は、このアカウントを設定した方を示す管理用の名前です）。
+            解除するとログインは不要になります。
+        </div>
+    </MudItem>
+
+    <MudItem xs="12" md="8">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">アカウント</div>
+
+            <div class="acc-status mb-4">
+                状態：
+                @if (_current is not null)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text"
+                             Icon="@Icons.Material.Filled.CheckCircle">設定済み（ID：@_current.Id ／ 設定者：@_current.Name）</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Text"
+                             Icon="@Icons.Material.Filled.LockOpen">未設定（ログイン不要）</MudChip>
+                }
+            </div>
+
+            @if (_justSet)
+            {
+                <MudAlert Severity="Severity.Info" Class="mb-4">
+                    セキュリティアカウントを設定しました。次回アクセス時からログインが必要です。
+                    <MudButton Class="ml-2" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                               OnClick="ログインへ">ログイン画面へ</MudButton>
+                </MudAlert>
+            }
+
+            <MudTextField @bind-Value="_id" Label="アカウントID" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Class="mb-3" MaxLength="64" Disabled="_busy" />
+            <MudTextField @bind-Value="_name" Label="設定者名" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Class="mb-3" MaxLength="64" Disabled="_busy" />
+            <MudTextField @bind-Value="_password" Label="@(_current is null ? "パスワード" : "新しいパスワード")"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                          InputType="InputType.Password" MaxLength="64" Disabled="_busy" />
+            <MudTextField @bind-Value="_passwordConfirm" Label="パスワード（確認）"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4"
+                          InputType="InputType.Password" MaxLength="64" Disabled="_busy" />
+
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                           OnClick="設定" Disabled="_busy">設定</MudButton>
+                @if (_current is not null)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.LockOpen"
+                               OnClick="解除" Disabled="_busy">解除</MudButton>
+                }
+            </div>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private bool _busy;
+    private bool _justSet;
+    private SecurityAccountInfo? _current;
+
+    private string _id = "";
+    private string _name = "";
+    private string _password = "";
+    private string _passwordConfirm = "";
+
+    protected override void OnInitialized() => 再読込();
+
+    private void 再読込()
+    {
+        try { _current = Db.GetSecurityAccount(); }
+        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); _current = null; }
+        _id = _current?.Id ?? "";
+        _name = _current?.Name ?? "";
+        _password = "";
+        _passwordConfirm = "";
+    }
+
+    private async Task 設定()
+    {
+        // 現行 btn_設定 と同じ入力チェック。
+        string? msg = null;
+        if (string.IsNullOrWhiteSpace(_id)) msg = "アカウントIDを入力してください。";
+        else if (string.IsNullOrWhiteSpace(_password)) msg = "パスワードを入力してください。";
+        else if (_password != _passwordConfirm) msg = "パスワードが一致しません。";
+        else if (string.IsNullOrWhiteSpace(_name)) msg = "設定者名を入力してください。";
+        if (msg is not null) { Snackbar.Add(msg, Severity.Warning); return; }
+
+        _busy = true;
+        try
+        {
+            var r = Db.SetSecurityAccount(_id, _name, _password);
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+            if (r.Ok)
+            {
+                _justSet = true;
+                再読込();
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"設定に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task 解除()
+    {
+        bool? ok = await Dialog.ShowMessageBoxAsync("確認",
+            "セキュリティアカウントを解除します。以後ログインは不要になります。よろしいですか？",
+            yesText: "解除する", cancelText: "キャンセル");
+        if (ok != true) return;
+
+        _busy = true;
+        try
+        {
+            var r = Db.ClearSecurityAccount();
+            Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
+            if (r.Ok) { _justSet = false; 再読込(); }
+        }
+        catch (Exception ex) { Snackbar.Add($"解除に失敗しました：{ex.Message}", Severity.Error); }
+        finally { _busy = false; }
+    }
+
+    private void ログインへ() => Nav.NavigateTo("/login", forceLoad: true);
+}

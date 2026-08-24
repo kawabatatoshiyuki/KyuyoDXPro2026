@@ -1,0 +1,270 @@
+@page "/setup/paydays"
+@using PayCalcDXPro.Data.PayDay
+@using PayCalcDXPro.Domain.Calendar
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>支払日｜給与計算DXPro</PageTitle>
+
+@* タイトルヘッダーを固定（会社情報と統一）。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5">支払日</MudText>
+        </MudStack>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveAsync" Disabled="@(_loading || _saving)">
+            登録する
+        </MudButton>
+    </MudStack>
+</MudPaper>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+}
+else
+{
+    <!-- 基本 -->
+    <MudPaper Elevation="1" Class="pa-4 mb-4 mt-2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+            <MudIcon Icon="@Icons.Material.Filled.Tune" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">基本設定</MudText>
+        </MudStack>
+        <MudGrid Spacing="3">
+            <MudItem xs="6" sm="3">
+                <MudNumericField @bind-Value="_model.支給年" Label="支給年（処理年）" Variant="Variant.Outlined"
+                                 Min="2000" Max="2100" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudSelect T="string" @bind-Value="_model.締月" Label="締月" Variant="Variant.Outlined"
+                           HelperText="支給月の労働対象が前月か当月か。">
+                    <MudSelectItem T="string" Value="@("前月")">前月</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("当月")">当月</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudSelect T="string" @bind-Value="_model.締日付" Label="締日" Variant="Variant.Outlined">
+                    <MudSelectItem T="string" Value="@("末")">末日</MudSelectItem>
+                    @foreach (var d in Enumerable.Range(1, 31))
+                    {
+                        <MudSelectItem T="string" Value="@d.ToString()">@d 日</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField @bind-Value="_model.支給日" Label="支給日（基準）" Variant="Variant.Outlined"
+                                 Min="1" Max="31" Adornment="Adornment.End" AdornmentText="日"
+                                 HelperText="各月の既定の支給日。" />
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <!-- 月別支給予定 -->
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="2" Class="mb-3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">月別の支給予定</MudText>
+            </MudStack>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                       OnClick="ExpandAsync" Disabled="_saving">展開する</MudButton>
+        </MudStack>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+            「展開する」で、支給年・締月・支給日（基準）から12ヶ月分の支給月日・計算対象（年月）・所定勤務日数を自動設定します。
+            処理済みの回は給与計算側で更新されます。
+        </MudText>
+        <MudSimpleTable Dense="true" Hover="true" Bordered="true" Class="paydays-table">
+            <thead>
+                <tr>
+                    <th>回</th>
+                    <th>支給月</th>
+                    <th>支給日</th>
+                    <th>対象年</th>
+                    <th>対象月</th>
+                    <th>所定勤務日数</th>
+                    <th>状態</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < _model.月別.Count; i++)
+                {
+                    var m = _model.月別[i];
+                    <tr>
+                        <td>@(i + 1)</td>
+                        <td><MudNumericField @bind-Value="m.支給月" Variant="Variant.Text" Margin="Margin.Dense" Min="1" Max="12" HideSpinButtons="true" /></td>
+                        <td><MudNumericField @bind-Value="m.支給日" Variant="Variant.Text" Margin="Margin.Dense" Min="1" Max="31" HideSpinButtons="true" /></td>
+                        <td><MudNumericField @bind-Value="m.対象年" Variant="Variant.Text" Margin="Margin.Dense" Min="2000" Max="2100" HideSpinButtons="true" /></td>
+                        <td><MudNumericField @bind-Value="m.対象月" Variant="Variant.Text" Margin="Margin.Dense" Min="1" Max="12" HideSpinButtons="true" /></td>
+                        <td><MudNumericField @bind-Value="m.所定勤務日数" Variant="Variant.Text" Margin="Margin.Dense" Min="0" Max="31" HideSpinButtons="true" /></td>
+                        <td>
+                            @if (m.処理済みフラグ == "1")
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">処理済</MudChip>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">未処理</MudText>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    </MudPaper>
+
+    <!-- 賞与支給予定 -->
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+            <MudIcon Icon="@Icons.Material.Filled.Redeem" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">賞与の支給予定</MudText>
+        </MudStack>
+        <MudSimpleTable Dense="true" Hover="true" Bordered="true" Class="paydays-table">
+            <thead>
+                <tr>
+                    <th>回</th>
+                    <th>支給月</th>
+                    <th>支給日</th>
+                    <th>状態</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < _model.賞与.Count; i++)
+                {
+                    var b = _model.賞与[i];
+                    <tr>
+                        <td>@(i + 1) 回目</td>
+                        <td><MudNumericField @bind-Value="b.支給月" Variant="Variant.Text" Margin="Margin.Dense" Min="1" Max="12" HideSpinButtons="true" /></td>
+                        <td><MudNumericField @bind-Value="b.支給日" Variant="Variant.Text" Margin="Margin.Dense" Min="1" Max="31" HideSpinButtons="true" /></td>
+                        <td>
+                            @if (b.処理済みフラグ == "1")
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">処理済</MudChip>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">未処理</MudText>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    </MudPaper>
+}
+
+@code {
+    private PayDayInfo _model = new();
+    private bool _loading = true;
+    private bool _saving;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _model = await Task.Run(() => Db.LoadPayDays());
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // 支給年・締月・支給日（基準）から12ヶ月分を自動展開する（現行 B_展開 を移植）。
+    private async Task ExpandAsync()
+    {
+        if (_model.支給日 is not > 0)
+        {
+            Snackbar.Add("支給日（基準）を入力してください。", Severity.Warning);
+            return;
+        }
+        if (_model.支給年 is < 2000 or > 2100)
+        {
+            Snackbar.Add("支給年を正しく入力してください。", Severity.Warning);
+            return;
+        }
+        if (_model.締月 is not ("前月" or "当月"))
+        {
+            Snackbar.Add("締月（前月／当月）を選択してください。", Severity.Warning);
+            return;
+        }
+
+        // 既に対象年月・所定日数が入っていれば上書き確認。
+        bool hasData = _model.月別.Any(m => m.対象年 is > 0 || m.対象月 is > 0 || m.所定勤務日数 is > 0);
+        if (hasData)
+        {
+            bool? ok = await Dialog.ShowMessageBoxAsync(
+                "支給予定の展開",
+                "入力済みの支給予定を上書きします。よろしいですか？",
+                yesText: "展開する", cancelText: "キャンセル");
+            if (ok != true) return;
+        }
+
+        int year = _model.支給年;
+        int baseDay = _model.支給日!.Value;
+        bool 前月 = _model.締月 == "前月";
+
+        for (int i = 0; i < 12; i++)
+        {
+            int payMonth = i + 1;
+            var m = _model.月別[i];
+            m.支給月 = payMonth;
+            m.支給日 = Math.Min(baseDay, DateTime.DaysInMonth(year, payMonth)); // 実在日へ補正
+
+            if (前月)
+            {
+                if (i == 0) { m.対象年 = year - 1; m.対象月 = 12; }
+                else { m.対象年 = year; m.対象月 = i; }
+            }
+            else
+            {
+                m.対象年 = year;
+                m.対象月 = payMonth;
+            }
+
+            // 所定勤務日数＝土日・祝日を除く日数（祝日はオフライン算出）。
+            m.所定勤務日数 = JapaneseHolidays.WorkingDayCount(m.対象年!.Value, m.対象月!.Value);
+        }
+        Snackbar.Add("12ヶ月分を展開しました（所定勤務日数は土日・祝日を除外）。", Severity.Success);
+    }
+
+    private async Task SaveAsync()
+    {
+        // 賞与は月・日の片方だけ入力されていないかを確認。
+        foreach (var b in _model.賞与)
+        {
+            bool hasMonth = b.支給月 is > 0;
+            bool hasDay = b.支給日 is > 0;
+            if (hasMonth != hasDay)
+            {
+                Snackbar.Add("賞与の支給月・支給日は両方を入力してください。", Severity.Warning);
+                return;
+            }
+        }
+
+        _saving = true;
+        try
+        {
+            var toSave = _model;
+            await Task.Run(() => Db.SavePayDays(toSave));
+            Snackbar.Add("支払日を登録しました。", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"登録に失敗しました：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

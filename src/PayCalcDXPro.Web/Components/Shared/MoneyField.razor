@@ -1,0 +1,27 @@
+@namespace PayCalcDXPro.Web.Components.Shared
+@using System.Globalization
+
+@* 金額入力の共通部品。表示は3桁カンマ区切り、保持する値は数値そのもの（long）。
+   数値以外は入力不可（MudNumericField）。給与・賞与などの金額項目はこれを使う。 *@
+<MudNumericField T="long?" Value="Value" ValueChanged="OnChanged"
+                 Label="@Label" Variant="Variant.Outlined"
+                 Format="#,##0" Culture="@CultureInfo.InvariantCulture"
+                 HideSpinButtons="true" Min="@Min" Max="@Max" InputMode="InputMode.numeric"
+                 Adornment="Adornment.End" AdornmentText="@Unit"
+                 Style="text-align:right;" Class="@Class" />
+
+@code {
+    [Parameter] public long? Value { get; set; }
+    [Parameter] public EventCallback<long?> ValueChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "金額";
+    [Parameter] public string Unit { get; set; } = "円";
+    [Parameter] public long? Min { get; set; } = 0;
+    [Parameter] public long? Max { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    private async Task OnChanged(long? value)
+    {
+        Value = value;
+        await ValueChanged.InvokeAsync(value);
+    }
+}

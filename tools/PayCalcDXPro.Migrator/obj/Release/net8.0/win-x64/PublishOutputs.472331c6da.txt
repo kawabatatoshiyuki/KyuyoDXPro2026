@@ -1,0 +1,5 @@
+C:\package\migrator\PayCalcDXPro.Migrator.pdb
+C:\package\migrator\PayCalcDXPro.Data.pdb
+C:\package\migrator\PayCalcDXPro.Domain.pdb
+C:\package\migrator\PayCalcDXPro.Security.pdb
+C:\package\migrator\PayCalcDXPro.Migrator.exe

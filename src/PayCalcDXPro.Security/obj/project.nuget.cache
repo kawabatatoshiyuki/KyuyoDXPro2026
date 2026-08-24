@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "b6XQjC/qKIE=",
+  "success": true,
+  "projectFilePath": "C:\\PayCalcDXPro\\src\\PayCalcDXPro.Security\\PayCalcDXPro.Security.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\kawab\\.nuget\\packages\\system.security.cryptography.protecteddata\\9.0.0\\system.security.cryptography.protecteddata.9.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}

@@ -1,0 +1,68 @@
+@page "/year-end/legal-record"
+
+<PageTitle>法定調書合計表の印刷｜給与計算DXPro</PageTitle>
+
+<style>
+    .lr-desc { background:var(--mud-palette-background-grey); border-radius:8px; padding:12px 16px;
+               font-size:0.85rem; line-height:1.6; color:var(--mud-palette-text-secondary); }
+    .lr-groups { display:flex; flex-direction:column; gap:20px; margin-top:8px; }
+</style>
+
+@* 固定ヘッダー：タイトル＋プレビュー／PDF出力（集計表と同様の印刷指示バー）。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.Gavel" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">法定調書合計表の印刷</MudText>
+            </div>
+        </div>
+        <div class="proc-header__actions">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Preview"
+                       OnClick="Preview">プレビュー</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                       Href="@PdfUrl" Target="_blank">PDF出力（別タブ）</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+<MudGrid Spacing="3">
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="lr-desc mb-4">
+                「給与所得の源泉徴収票等の法定調書合計表」を印刷します。給与所得・退職所得の源泉徴収票、
+                報酬料金・不動産使用料・不動産譲受・不動産あっせんの各支払調書の人員・支払金額・源泉徴収税額を、
+                登録済みのデータから自動集計します。会社情報（署番号・整理番号・法人番号ほか）は
+                <MudLink Href="/setup/company">会社情報</MudLink>の登録値を使用します。
+            </div>
+            <div class="lr-groups">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    集計対象は全社の登録データです。印刷前に各支払調書・年末調整の登録内容をご確認ください。
+                </MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="8">
+        <div class="mt-1">
+            @if (string.IsNullOrEmpty(_previewUrl))
+            {
+                <MudPaper Elevation="1" Class="pa-6">
+                    <MudText Class="pa-3" Color="Color.Secondary">「プレビュー」を押すと、法定調書合計表を右側に表示します。</MudText>
+                </MudPaper>
+            }
+            else
+            {
+                <iframe src="@_previewUrl" style="width:100%;height:82vh;border:1px solid var(--mud-palette-divider);border-radius:6px;"></iframe>
+            }
+        </div>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string _previewUrl = "";
+
+    private string PdfUrl => "/year-end/legal-record/pdf";
+
+    private void Preview() => _previewUrl = PdfUrl;
+}

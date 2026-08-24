@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PayCalcDXPro.Data\PayCalcDXPro.Data.csproj" />
+    <ProjectReference Include="..\..\src\PayCalcDXPro.Domain\PayCalcDXPro.Domain.csproj" />
+    <ProjectReference Include="..\..\src\PayCalcDXPro.Security\PayCalcDXPro.Security.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>PayCalcDXPro.Migrator</AssemblyName>
+  </PropertyGroup>
+
+</Project>

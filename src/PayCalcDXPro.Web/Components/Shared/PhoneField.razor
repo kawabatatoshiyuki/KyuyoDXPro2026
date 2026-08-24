@@ -1,0 +1,31 @@
+@namespace PayCalcDXPro.Web.Components.Shared
+@using PayCalcDXPro.Domain.Formatting
+
+@* 電話番号入力。全角→半角、数字とハイフン以外を除去して保存。区切りは利用者の入力を尊重（自動桁分けはしない）。 *@
+<MudTextField T="string" Value="Value" ValueChanged="OnChanged" Converter="_converter"
+              Label="@Label" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="20" InputMode="InputMode.tel"
+              Validation="@(new Func<string, string?>(Validate))" />
+
+@code {
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "電話番号";
+
+    private static readonly DeferredConverter<string, string> _converter = MakeConverter();
+
+    private static DeferredConverter<string, string> MakeConverter()
+    {
+        var c = new DeferredConverter<string, string>();
+        c.Set(v => v ?? "", t => InputFormat.NormalizePhone(t));
+        return c;
+    }
+
+    private async Task OnChanged(string value)
+    {
+        Value = value;
+        await ValueChanged.InvokeAsync(value);
+    }
+
+    private static string? Validate(string v)
+        => InputFormat.IsValidPhone(v) ? null : "電話番号は市外局番を含む10〜11桁で入力してください。";
+}

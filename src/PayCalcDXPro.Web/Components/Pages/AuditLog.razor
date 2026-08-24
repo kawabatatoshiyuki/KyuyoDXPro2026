@@ -1,0 +1,106 @@
+@page "/setup/audit-log"
+@using PayCalcDXPro.Data.MyNumber
+@inject PayCalcDXPro.Web.LocalDatabaseService Db
+
+<PageTitle>アクセスログ｜給与計算DXPro</PageTitle>
+
+@* セキュリティアカウント未設定時は操作不可（現行 F_menu.B_myno_Click の AccountInfo チェック＝マイナンバー管理サブメニュー内でガード）。 *@
+@if (!_securityOk)
+{
+    <MudPaper Elevation="1" Class="ma-4 pa-6" Style="max-width:720px;">
+        <div class="d-flex align-center mb-2" style="gap:10px;">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Warning" Size="Size.Large" />
+            <MudText Typo="Typo.h6">アクセスログを参照するには設定が必要です</MudText>
+        </div>
+        <MudText Typo="Typo.body1" Class="mb-1">
+            アクセスログ（マイナンバー等の操作記録）を参照するには、<strong>セキュリティアカウントの設定</strong>が必要です。
+        </MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            設定すると、権限のある方のみがログインして操作でき、誰がいつ操作したかがこのアクセスログに記録されます。
+        </MudText>
+        <MudButton Href="/settings/account" Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Lock">セキュリティアカウント設定へ</MudButton>
+    </MudPaper>
+}
+else
+{
+
+@* 固定ヘッダー：件数＋CSV出力。現行 F_アクセスログ参照出力 に相当。 *@
+<MudPaper Elevation="2" Square="true" Class="page-sticky-header py-3 px-2">
+    <div class="proc-header__bar">
+        <div class="proc-header__main">
+            <div class="proc-header__title">
+                <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5">アクセスログ</MudText>
+            </div>
+            <div class="proc-header__controls">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@_件数 件</MudText>
+            </div>
+        </div>
+        <div class="proc-header__actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
+                       Href="/setup/audit-log/csv" Target="_top">CSV出力</MudButton>
+        </div>
+    </div>
+</MudPaper>
+
+<MudPaper Elevation="1" Class="ma-2">
+    <MudTable Items="_rows" Dense="true" Hover="true" Striped="true" FixedHeader="true"
+              Filter="new Func<AuditLogRow,bool>(Match)" Height="calc(100vh - 230px)">
+        <ToolBarContent>
+            <MudTextField @bind-Value="_search" Placeholder="検索（操作者・処理・取扱・詳細）" Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Small" Margin="Margin.Dense"
+                          Immediate="true" Class="mt-0" />
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>日時</MudTh>
+            <MudTh>操作者</MudTh>
+            <MudTh>処理</MudTh>
+            <MudTh>取扱</MudTh>
+            <MudTh>詳細</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="日時" Style="white-space:nowrap;">@context.日時</MudTd>
+            <MudTd DataLabel="操作者">@context.操作者</MudTd>
+            <MudTd DataLabel="処理">@context.処理</MudTd>
+            <MudTd DataLabel="取扱">@context.取扱</MudTd>
+            <MudTd DataLabel="詳細">@context.詳細</MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new[] { 50, 100, 200 }" />
+        </PagerContent>
+        <NoRecordsContent>
+            <MudText Class="pa-4" Color="Color.Secondary">操作ログはまだありません。</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+}
+
+@code {
+    private IReadOnlyList<AuditLogRow> _rows = Array.Empty<AuditLogRow>();
+    private long _件数;
+    private string _search = "";
+    private bool _securityOk;
+
+    protected override void OnInitialized()
+    {
+        _securityOk = Db.SecurityAccountExists();
+        if (!_securityOk) return;   // セキュリティアカウント未設定時は読み込まず操作不可。
+
+        var (行, 件数) = Db.LoadAuditLogs();
+        _rows = 行;
+        _件数 = 件数;
+    }
+
+    private bool Match(AuditLogRow r)
+    {
+        if (string.IsNullOrWhiteSpace(_search)) return true;
+        var s = _search.Trim();
+        return (r.操作者?.Contains(s) ?? false)
+            || (r.処理?.Contains(s) ?? false)
+            || (r.取扱?.Contains(s) ?? false)
+            || (r.詳細?.Contains(s) ?? false)
+            || (r.日時?.Contains(s) ?? false);
+    }
+}
