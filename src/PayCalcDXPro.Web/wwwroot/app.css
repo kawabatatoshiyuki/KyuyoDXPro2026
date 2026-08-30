@@ -507,7 +507,7 @@ h1:focus {
 }
 .gensen-table .ye-no {
     flex: 0 0 auto;
-    color: rgba(0, 0, 0, .6);
+    color: var(--mud-palette-text-secondary);   /* ライト/ダークで自動切替 */
     font-size: .85em;
 }
 .gensen-table .ye-val {
@@ -529,7 +529,7 @@ h1:focus {
     text-align: left;
     font-size: .72rem;
     line-height: 1.2;
-    color: rgba(0, 0, 0, .6);
+    color: var(--mud-palette-text-secondary);   /* ライト/ダークで自動切替 */
 }
 .gensen-table .ye-tenki-d {
     display: block;
