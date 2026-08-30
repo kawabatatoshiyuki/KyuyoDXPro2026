@@ -516,3 +516,23 @@ h1:focus {
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
+
+/* 申告転記事項：税額欄の空きへ「タイトル→データ」を縦に置く。横罫線は出さない（官製様式）。 */
+.gensen-table td.ye-tenki-cell {
+    border-top: none;
+    border-bottom: none;
+    white-space: normal;       /* 長いタイトルは折り返す */
+    vertical-align: middle;
+}
+.gensen-table .ye-tenki-t {
+    display: block;
+    text-align: left;
+    font-size: .72rem;
+    line-height: 1.2;
+    color: rgba(0, 0, 0, .6);
+}
+.gensen-table .ye-tenki-d {
+    display: block;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
