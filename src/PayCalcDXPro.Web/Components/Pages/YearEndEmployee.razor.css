@@ -64,24 +64,8 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
-/* 金額/税額欄：番号（枠の最左）＋金額（右詰め）。源泉徴収簿に合わせ番号は左端に置く。 */
-.gensen-table ::deep td.ye-amount .ye-cell {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-}
-.gensen-table ::deep .ye-no {
-    flex: 0 0 auto;
-    color: var(--mud-palette-text-secondary);
-    font-size: .8rem;
-    font-weight: 400;
-}
-.gensen-table ::deep .ye-val {
-    flex: 1 1 auto;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-}
+/* 金額/税額欄の番号（.ye-cell/.ye-no/.ye-val）は、分離CSSだとMudSimpleTable内の生成要素へ
+   スコープが一致せず効かないため、グローバルの wwwroot/app.css で指定している。 */
 
 /* 申告書転記事項（所得金額調整控除の適用 枠）：タイトル行＋データ行の横ストリップ。下罫線なし。 */
 .ye-tenki-table {
