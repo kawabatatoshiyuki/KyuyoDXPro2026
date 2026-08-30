@@ -42,32 +42,52 @@
 </MudPaper>
 
 <MudGrid Spacing="2" Class="pa-2">
-    @* 左：印刷対象の従業員を複数選択 *@
-    <MudItem xs="12" md="5">
-        <MudPaper Elevation="1">
-            <MudTable Items="_targets" Hover="true" Dense="true" FixedHeader="true" Height="calc(100vh - 240px)"
-                      MultiSelection="true" SelectedItems="_selected" SelectedItemsChanged="OnSelectionChanged" T="YearEndTarget">
-                <HeaderContent>
-                    <MudTh>No</MudTh>
-                    <MudTh>氏名</MudTh>
-                    <MudTh>就退区分</MudTh>
-                    <MudTh Style="width:1%;"></MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="No">@context.No</MudTd>
-                    <MudTd DataLabel="氏名">@context.氏名</MudTd>
-                    <MudTd DataLabel="就退区分">@context.就退区分名</MudTd>
-                    <MudTd>
-                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.Print"
-                                   OnClick="@(() => 印刷1(context.Number))">印刷</MudButton>
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
+    @* 左：印刷対象の従業員を複数選択（支払明細書・賃金台帳と同じ選択方式） *@
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-4">
+            <div class="proc-section-title">従業員の選択</div>
+            @if (_targets.Count == 0)
+            {
+                <MudText Color="Color.Secondary" Class="mt-2">対象の従業員がいません。</MudText>
+            }
+            else
+            {
+                var filtered = _targets.Where(MatchSearch).ToList();
+                <div class="d-flex align-center justify-space-between flex-wrap" style="gap:8px;">
+                    <MudCheckBox T="bool" Value="@(_targets.Count > 0 && _targets.All(x => _selected.Contains(x.Number)))"
+                                 ValueChanged="ToggleAll" Color="Color.Primary"
+                                 Label="全ての従業員を選択する" Dense="true" />
+                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">
+                        @_selected.Count 名選択中 / 全 @_targets.Count 名
+                    </MudChip>
+                </div>
+                <MudTextField @bind-Value="_search" Immediate="true" DebounceInterval="150"
+                              Placeholder="氏名・No で絞り込み" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                              Clearable="true" Class="my-2" />
+                <MudDivider Class="my-2" />
+                <div style="max-height:calc(100vh - 320px);overflow:auto;">
+                    @if (filtered.Count == 0)
+                    {
+                        <MudText Color="Color.Secondary" Class="pa-2">該当する従業員がいません。</MudText>
+                    }
+                    else
+                    {
+                        @foreach (var it in filtered)
+                        {
+                            int num = it.Number;
+                            <MudCheckBox T="bool" Value="_selected.Contains(num)"
+                                         ValueChanged="@((bool v) => ToggleOne(num, v))" Dense="true" Color="Color.Primary"
+                                         Label="@($"{it.氏名}（No.{it.No}）{(it.Retired ? "　※退職" : "")}")" />
+                        }
+                    }
+                </div>
+            }
         </MudPaper>
     </MudItem>
 
     @* 右：選択した従業員の帳票プレビュー（他の印刷指示画面と同様） *@
-    <MudItem xs="12" md="7">
+    <MudItem xs="12" md="8">
         @if (string.IsNullOrEmpty(_previewUrl))
         {
             <MudPaper Elevation="1" Class="pa-6">
@@ -78,7 +98,8 @@
         }
         else
         {
-            <iframe src="@_previewUrl" style="width:100%;height:calc(100vh - 240px);border:1px solid var(--mud-palette-divider);border-radius:6px;"></iframe>
+            @* #view=FitH でPDFを幅合わせ表示にし、列を広げた分だけプレビューも大きくする。 *@
+            <iframe src="@($"{_previewUrl}#view=FitH")" style="width:100%;height:calc(100vh - 240px);border:1px solid var(--mud-palette-divider);border-radius:6px;"></iframe>
         }
     </MudItem>
 </MudGrid>
@@ -89,7 +110,8 @@
     private const string Kind徴収簿 = "源泉徴収簿";
 
     private IReadOnlyList<YearEndTarget> _targets = Array.Empty<YearEndTarget>();
-    private HashSet<YearEndTarget> _selected = new();
+    private HashSet<int> _selected = new();
+    private string _search = "";
     private string _帳票 = Kind源泉;
     private string _種別 = "給料・賞与";
     private string _元号 = "令和";
@@ -99,13 +121,34 @@
     // 種別は源泉徴収票・給与支払報告書でのみ使用（源泉徴収簿は非活性・現行 txtsyubetu.Enabled）。
     private bool 種別使用 => _帳票 is Kind源泉 or Kind給報;
 
-    // 帳票種類・選択が変わるとプレビューは古くなるので消す（他の印刷指示画面と同じ挙動）。
+    // 帳票種類が変わるとプレビューは古くなるので消す（他の印刷指示画面と同じ挙動）。
     private void On帳票Changed(string v) { _帳票 = v; _previewUrl = ""; }
-    private void OnSelectionChanged(HashSet<YearEndTarget> items) { _selected = items; _previewUrl = ""; }
+
+    // 氏名・社員Noによる絞り込み（大人数からの選択用。支払明細書と同じ）。
+    private bool MatchSearch(YearEndTarget it)
+    {
+        if (string.IsNullOrWhiteSpace(_search)) return true;
+        var s = _search.Trim();
+        return (it.氏名?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (it.No?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private void ToggleAll(bool v)
+    {
+        _selected = v ? _targets.Select(x => x.Number).ToHashSet() : new();
+        _previewUrl = "";
+    }
+
+    private void ToggleOne(int number, bool v)
+    {
+        if (v) _selected.Add(number); else _selected.Remove(number);
+        _previewUrl = "";
+    }
 
     protected override void OnInitialized()
     {
         _targets = Db.LoadYearEndTargets();
+        _selected = _targets.Select(t => t.Number).ToHashSet();   // 初期は全員選択（他の印刷指示画面に合わせる）。
         int y = Db.LoadPayDayStatus().処理年;
         _年 = y > 2018 ? (y - 2018).ToString() : "";
     }
@@ -130,15 +173,8 @@
     {
         if (_selected.Count == 0) { Snackbar.Add("従業員を選択してください。", Severity.Warning); return; }
         if (!実装済み) { Snackbar.Add($"{_帳票}は現在移植中です。しばらくお待ちください。", Severity.Info); return; }
-        var csv = string.Join(",", _selected.OrderBy(x => x.Number).Select(x => x.Number));
+        var csv = string.Join(",", _selected.OrderBy(n => n));
         _previewUrl = UrlFor(csv) ?? "";
-    }
-
-    private async Task 印刷1(int number)
-    {
-        if (!実装済み) { Snackbar.Add($"{_帳票}は現在移植中です。しばらくお待ちください。", Severity.Info); return; }
-        var url = UrlFor(number.ToString());
-        if (url is not null) await JS.InvokeVoidAsync("open", url, "_blank");
     }
 
     private async Task 印刷()
@@ -146,7 +182,7 @@
         if (_selected.Count == 0) { Snackbar.Add("従業員を選択してください。", Severity.Warning); return; }
         if (!実装済み) { Snackbar.Add($"{_帳票}は現在移植中です。しばらくお待ちください。", Severity.Info); return; }
         // 選択者全員を1つの複数ページPDFにまとめて新規タブで開く（ポップアップブロック回避）。
-        var csv = string.Join(",", _selected.OrderBy(x => x.Number).Select(x => x.Number));
+        var csv = string.Join(",", _selected.OrderBy(n => n));
         var url = UrlFor(csv);
         if (url is not null) await JS.InvokeVoidAsync("open", url, "_blank");
     }

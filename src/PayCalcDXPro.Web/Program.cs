@@ -206,10 +206,13 @@ app.MapGet("/payroll/wage-ledger/pdf", (LocalDatabaseService db, string? kind, i
 });
 
 // 賃金台帳（従業員別）。kind=salary（給与）/ bonus（賞与）。dept=部門名（空＝全部門）。empty=賃金なしも含める。
-app.MapGet("/payroll/wage-ledger-emp/pdf", (LocalDatabaseService db, string? kind, string? dept, bool? empty) =>
+// nums=出力対象の従業員 Number（カンマ区切り。空＝部門・賃金なし条件に従い全員）。
+app.MapGet("/payroll/wage-ledger-emp/pdf", (LocalDatabaseService db, string? kind, string? dept, bool? empty, string? nums) =>
 {
     string? 部門 = string.IsNullOrWhiteSpace(dept) ? null : dept;
-    var bytes = db.BuildWageLedgerEmpPdf(kind == "bonus", 部門, empty ?? false);
+    var 対象 = (nums ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(s => int.TryParse(s, out var n) ? n : (int?)null).Where(n => n.HasValue).Select(n => n!.Value).ToHashSet();
+    var bytes = db.BuildWageLedgerEmpPdf(kind == "bonus", 部門, empty ?? false, 対象.Count > 0 ? 対象 : null);
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
 });
 

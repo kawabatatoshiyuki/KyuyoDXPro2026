@@ -84,22 +84,23 @@
                         <MudSelectItem T="int" Value="v">@r.ラベル</MudSelectItem>
                     }
                 </MudSelect>
-                <MudSelect T="int" Value="_selNumber" ValueChanged="OnEmployeeChanged" Label="従業員"
-                           Variant="Variant.Outlined" Dense="true" Style="min-width:240px;"
-                           Disabled="@(_meta.従業員.Count == 0)" ToStringFunc="EmployeeLabel">
-                    @foreach (var it in _meta.従業員)
-                    {
-                        <MudSelectItem T="int" Value="it.Number">
-                            @it.氏名（No.@it.No）@(it.退職 ? "［退職］" : "")@(_saved.Contains(it.Number) ? " ✅" : "")
-                        </MudSelectItem>
-                    }
-                </MudSelect>
-                @if (!string.IsNullOrEmpty(_meta.対象月))
+                @* 従業員選択：md未満（モバイル）ではこのドロップダウン、md以上では左の一覧パネルを使う。 *@
+                <span class="emp-dd-wrap">
+                    <MudSelect T="int" Value="_selNumber" ValueChanged="OnEmployeeChanged" Label="従業員"
+                               Variant="Variant.Outlined" Dense="true" Style="min-width:240px;"
+                               Disabled="@(_meta.従業員.Count == 0)" ToStringFunc="EmployeeLabel">
+                        @foreach (var it in _meta.従業員)
+                        {
+                            <MudSelectItem T="int" Value="it.Number">
+                                @it.氏名（No.@it.No）@(it.退職 ? "［退職］" : "")@(_saved.Contains(it.Number) ? " ✅" : "")
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                </span>
+                @if (!string.IsNullOrEmpty(_meta.支給日))
                 {
                     <MudText Typo="Typo.body2" Color="Color.Secondary" Style="white-space:nowrap;">
-                        （@(_meta.対象年)年）@(_meta.対象月)月分給与
-                        @(string.IsNullOrEmpty(_meta.支給日) ? "" : $"　{_meta.支給日} 支給")
-                        @(_meta.所定勤務日数 is int d ? $"　所定 {d}日" : "")
+                        @(_meta.支給日) 支給
                     </MudText>
                 }
             </div>
@@ -124,8 +125,15 @@
     </div>
 </MudPaper>
 
+<div class="proc-body">
+    @* 左：従業員一覧パネル（md以上のみ表示。モバイルはヘッダーのドロップダウン） *@
+    <aside class="emp-side">
+        <EmployeeSelectPanel Items="PickItems()" Selected="_selNumber"
+                             OnSelect="@(p => OnEmployeeChanged(p.Number))" />
+    </aside>
+    <div class="proc-main">
 <MudGrid Spacing="3">
-    <!-- 入力フォーム（全幅。従業員はヘッダーのドロップダウンで選択） -->
+    <!-- 入力フォーム（従業員はヘッダーのドロップダウン／左の一覧で選択） -->
     <MudItem xs="12">
         @if (_loading)
         {
@@ -142,7 +150,7 @@
             <MudPaper Elevation="1" Class="pa-4">
                 <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Class="py-12">
                     <MudIcon Icon="@Icons.Material.Filled.Payments" Size="Size.Large" Color="Color.Secondary" />
-                    <MudText Color="Color.Secondary">上部のドロップダウンから従業員を選んでください。</MudText>
+                    <MudText Color="Color.Secondary">左の一覧（またはモバイルでは上部のドロップダウン）から従業員を選んでください。</MudText>
                 </MudStack>
             </MudPaper>
         }
@@ -306,6 +314,8 @@
         }
     </MudItem>
 </MudGrid>
+    </div>
+</div>
 
 @code {
     private int _支給回 = 1;
@@ -324,6 +334,13 @@
         var it = _meta.従業員.FirstOrDefault(x => x.Number == number);
         return it is null ? "" : $"{it.氏名}（No.{it.No}）{(it.退職 ? "［退職］" : "")}";
     }
+    /// <summary>左一覧パネル用に従業員を詰め替える（副次表示＝部門/役職、✅＝当該支給回の保存済）。</summary>
+    private List<EmployeeSelectPanel.EmpPickItem> PickItems()
+        => _meta.従業員.Select(it => new EmployeeSelectPanel.EmpPickItem(
+            it.Number, it.No, it.氏名, it.フリガナ,
+            string.Join(" / ", new[] { it.部門名, it.役職名 }.Where(s => !string.IsNullOrEmpty(s))),
+            it.退職, _saved.Contains(it.Number))).ToList();
+
     private EmployeeListItem? _sel;
     private int _selNumber;
     private PayrollEntry? _entry;

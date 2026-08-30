@@ -29,9 +29,9 @@
         </div>
         <div class="proc-header__actions">
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Preview"
-                       OnClick="Preview" Disabled="@(!HasData)">プレビュー</MudButton>
+                       OnClick="Preview" Disabled="@(!CanOutput)">プレビュー</MudButton>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf"
-                       Href="@PdfUrl" Target="_blank" Disabled="@(!HasData)">PDF出力（別タブ）</MudButton>
+                       Href="@PdfUrl" Target="_blank" Disabled="@(!CanOutput)">PDF出力（別タブ）</MudButton>
         </div>
     </div>
 </MudPaper>
@@ -39,26 +39,71 @@
 <MudGrid Spacing="3">
     <MudItem xs="12" md="4">
         <MudPaper Elevation="1" Class="pa-4">
-            <div class="proc-section-title">出力対象</div>
+            <div class="proc-section-title">従業員の選択</div>
             <MudSwitch T="bool" Value="_includeEmpty" ValueChanged="OnIncludeEmptyChanged" Color="Color.Primary"
                        Label="賃金が発生していない従業員も含める" Class="mb-1" />
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-2">
-                ・従業員1人を1ページとし、@(_kind == "bonus" ? "賞与回" : "各支給月")を列、年間合計を右端に出力します。<br />
-                ・部門を選ぶとその部門の従業員のみに絞り込みます。<br />
-                ・「賃金が発生していない従業員も含める」をオフにすると、当年に給与（賞与）の無い従業員は除外します。
-            </MudText>
-        </MudPaper>
-
-        @if (!HasData)
-        {
-            <MudPaper Elevation="1" Class="pa-4 mt-3">
-                <MudText Color="Color.Secondary">
+            @if (!HasData)
+            {
+                <MudText Color="Color.Secondary" Class="mt-2">
                     @(_kind == "bonus" ? "賞与の支給予定" : "給与の支給月")が登録されていません。先に「支給日情報」を登録してください。
                 </MudText>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/setup/paydays"
                            StartIcon="@Icons.Material.Filled.EditCalendar" Class="mt-3">支給日情報へ</MudButton>
-            </MudPaper>
-        }
+            }
+            else
+            {
+                var selectable = Selectable().ToList();
+                var filtered = selectable.Where(MatchSearch).ToList();
+                @if (selectable.Count == 0)
+                {
+                    <MudText Color="Color.Secondary" Class="mt-2">
+                        当年に@(_kind == "bonus" ? "賞与" : "給与")データのある従業員がいません。「賃金が発生していない従業員も含める」をオンにすると在籍者を選べます。
+                    </MudText>
+                }
+                else
+                {
+                    <div class="d-flex align-center justify-space-between flex-wrap" style="gap:8px;">
+                        <MudCheckBox T="bool" Value="@(selectable.Count > 0 && selectable.All(x => _selected.Contains(x.Number)))"
+                                     ValueChanged="@((bool v) => ToggleAll(v, selectable))" Color="Color.Primary"
+                                     Label="全ての従業員を選択する" Dense="true" />
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">
+                            @_selected.Count 人選択中 / 全 @selectable.Count 人
+                        </MudChip>
+                    </div>
+                    <MudTextField @bind-Value="_search" Immediate="true" DebounceInterval="150"
+                                  Placeholder="氏名・No で絞り込み" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Clearable="true" Class="my-2" />
+                    <MudDivider Class="my-2" />
+                    <div style="max-height:calc(100vh - 320px);overflow:auto;">
+                        @if (filtered.Count == 0)
+                        {
+                            <MudText Color="Color.Secondary" Class="pa-2">該当する従業員がいません。</MudText>
+                        }
+                        else
+                        {
+                            @foreach (var it in filtered)
+                            {
+                                int num = it.Number;
+                                <MudCheckBox T="bool" Value="_selected.Contains(num)"
+                                             ValueChanged="@((bool v) => ToggleOne(num, v))" Dense="true" Color="Color.Primary"
+                                             Label="@($"{it.氏名}（No.{it.No}）{(it.賃金あり ? "" : "　※賃金なし")}")" />
+                            }
+                        }
+                    </div>
+                }
+            }
+        </MudPaper>
+
+        <MudPaper Elevation="1" Class="pa-4 mt-3">
+            <div class="proc-section-title">ワンポイントアドバイス</div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">
+                ・従業員1人を1ページとし、@(_kind == "bonus" ? "賞与回" : "各支給月")を列、年間合計を右端に出力します。<br />
+                ・出力したい従業員にチェックを入れてください。全員は「全ての従業員を選択する」。<br />
+                ・部門を選ぶとその部門の従業員のみに絞り込みます。<br />
+                ・「賃金が発生していない従業員も含める」をオフにすると、当年に給与（賞与）の無い従業員は選べません。
+            </MudText>
+        </MudPaper>
     </MudItem>
 
     <MudItem xs="12" md="8">
@@ -81,13 +126,42 @@
     private string _kind = "salary";
     private string _dept = "";
     private bool _includeEmpty;
+    private string _search = "";
     private string _previewUrl = "";
     private WageLedgerOptions _opt = new(Array.Empty<WageLedgerRound>(), Array.Empty<WageLedgerRound>(), Array.Empty<string>(), "給与", 1);
+    private IReadOnlyList<WageLedgerEmpSel> _empList = Array.Empty<WageLedgerEmpSel>();
+    private HashSet<int> _selected = new();
 
     private bool HasData => (_kind == "bonus" ? _opt.賞与回 : _opt.給与回).Any(x => x.選択可);
+    private bool CanOutput => HasData && Selectable().Any();
+
+    // 選択対象の従業員。部門で絞り込み、賃金なしを含めない時は当年に給与（賞与）のある人のみ。
+    // 含める時は在籍者（退職以外）＋賃金あり（退職でも当年に賃金があれば対象）。
+    private IEnumerable<WageLedgerEmpSel> Selectable()
+    {
+        var baseSet = string.IsNullOrEmpty(_dept) ? _empList : _empList.Where(x => x.部門名 == _dept);
+        return _includeEmpty ? baseSet.Where(x => x.賃金あり || !x.退職) : baseSet.Where(x => x.賃金あり);
+    }
+
+    // 氏名・社員Noによる絞り込み（大人数からの選択用）。
+    private bool MatchSearch(WageLedgerEmpSel it)
+    {
+        if (string.IsNullOrWhiteSpace(_search)) return true;
+        var s = _search.Trim();
+        return (it.氏名?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (it.フリガナ?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (it.No?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
 
     private string PdfUrl
-        => $"/payroll/wage-ledger-emp/pdf?kind={_kind}&dept={Uri.EscapeDataString(_dept)}&empty={_includeEmpty.ToString().ToLower()}";
+    {
+        get
+        {
+            // 選択中のみ出力する。未選択（0人）の時は空にして、部門・賃金なし条件に従い全員出力とする。
+            string nums = _selected.Count == 0 ? "" : string.Join(",", _selected);
+            return $"/payroll/wage-ledger-emp/pdf?kind={_kind}&dept={Uri.EscapeDataString(_dept)}&empty={_includeEmpty.ToString().ToLower()}&nums={nums}";
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -95,13 +169,49 @@
         {
             _opt = await Task.Run(() => Db.GetWageLedgerOptions());
             _kind = _opt.既定種別 == "賞与" ? "bonus" : "salary";
+            await ReloadEmployees();
         }
         catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
     }
 
-    private void OnKindChanged(string k) { _kind = k; _previewUrl = ""; }
-    private void OnDeptChanged(string d) { _dept = d; _previewUrl = ""; }
-    private void OnIncludeEmptyChanged(bool v) { _includeEmpty = v; _previewUrl = ""; }
+    // 種別（給与/賞与）に応じた従業員選択リストを読み込み、選択を対象全員に初期化する。
+    private async Task ReloadEmployees()
+    {
+        _empList = await Task.Run(() => Db.GetWageLedgerEmpList(_kind == "bonus"));
+        ResetSelection();
+    }
+
+    // 選択を現在の対象（部門・賃金なし条件反映後）全員に合わせる。
+    private void ResetSelection() => _selected = Selectable().Select(x => x.Number).ToHashSet();
+
+    private async Task OnKindChanged(string k)
+    {
+        _kind = k;
+        _previewUrl = "";
+        await ReloadEmployees();
+    }
+
+    private void OnDeptChanged(string d)
+    {
+        _dept = d;
+        _previewUrl = "";
+        ResetSelection();   // 部門を変えたら対象が変わるので選択を取り直す。
+    }
+
+    private void OnIncludeEmptyChanged(bool v)
+    {
+        _includeEmpty = v;
+        _previewUrl = "";
+        if (!v) _selected.IntersectWith(_empList.Where(x => x.賃金あり).Select(x => x.Number).ToHashSet());
+    }
+
+    private void ToggleAll(bool v, List<WageLedgerEmpSel> selectable)
+        => _selected = v ? selectable.Select(x => x.Number).ToHashSet() : new();
+
+    private void ToggleOne(int number, bool v)
+    {
+        if (v) _selected.Add(number); else _selected.Remove(number);
+    }
 
     private void Preview() => _previewUrl = PdfUrl;
 }

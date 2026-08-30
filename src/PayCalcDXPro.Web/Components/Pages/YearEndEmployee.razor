@@ -102,13 +102,17 @@
     // 金額を「1,234円」表記にする（各表の金額セル共通。最大 1 億＝100,000,000円 まで桁を表示）。
     string 円(int v) => v.ToString("#,##0") + "円";
 
-    // 源泉徴収簿（年末調整欄）の1行：区分／金額／税額。金額・税額は null で空欄。
-    RenderFragment 簿行(string 区分, int? 金額, int? 税額, bool 強調 = false) =>
+    // 源泉徴収簿（年末調整欄）の1行：区分／金額／税額。金額No・税額Noは各欄の最左に付す番号（源泉徴収簿の①〜）。
+    RenderFragment 簿行(string 区分, int? 金額, int? 税額, string? 金額No = null, string? 税額No = null, bool 強調 = false) =>
         @<tr style="@(強調 ? "font-weight:700;" : "")">
             <td>@区分</td>
-            <td class="ye-amount">@(金額.HasValue ? 円(金額.Value) : "")</td>
-            <td class="ye-amount">@(税額.HasValue ? 円(税額.Value) : "")</td>
+            <td class="ye-amount">@簿欄(金額No, 金額)</td>
+            <td class="ye-amount">@簿欄(税額No, 税額)</td>
          </tr>;
+
+    // 金額/税額欄：番号（最左）＋金額（右詰め）。源泉徴収簿と同じく番号は枠の最左に置く。
+    RenderFragment 簿欄(string? no, int? v) =>
+        @<div class="ye-cell"><span class="ye-no">@no</span><span class="ye-val">@(v.HasValue ? 円(v.Value) : "")</span></div>;
 
     // 収入種類コンボ（現行 002）。空コードは「（なし）」表示・既定は "1"。
     RenderFragment 収入種類Select(Func<string?> get, Action<string?> set) =>
@@ -192,13 +196,16 @@
                 <MudText Typo="Typo.h5">年末調整計算</MudText>
             </div>
             <div class="proc-header__controls">
-                <MudSelect T="int?" Value="_number" ValueChanged="On従業員Changed" Label="従業員"
-                           Variant="Variant.Outlined" Dense="true" Style="min-width:300px;">
-                    @foreach (var t in _targets)
-                    {
-                        <MudSelectItem T="int?" Value="@t.Number">@t.No　@t.氏名 @(t.Retired ? "（退職）" : "")</MudSelectItem>
-                    }
-                </MudSelect>
+                @* 従業員選択：md未満（モバイル）ではこのドロップダウン、md以上では左の一覧パネルを使う。 *@
+                <span class="emp-dd-wrap">
+                    <MudSelect T="int?" Value="_number" ValueChanged="On従業員Changed" Label="従業員"
+                               Variant="Variant.Outlined" Dense="true" Style="min-width:300px;">
+                        @foreach (var t in _targets)
+                        {
+                            <MudSelectItem T="int?" Value="@t.Number">@t.No　@t.氏名 @(t.Retired ? "（退職）" : "")</MudSelectItem>
+                        }
+                    </MudSelect>
+                </span>
                 @if (_e is not null)
                 {
                     @* 2段構成：上段＝タイトル／下段＝データ。 *@
@@ -226,13 +233,20 @@
     </div>
 </MudPaper>
 
+<div class="proc-body">
+    @* 左：従業員一覧パネル（md以上のみ表示。モバイルはヘッダーのドロップダウン） *@
+    <aside class="emp-side">
+        <EmployeeSelectPanel Items="PickItems()" Selected="@(_number ?? 0)"
+                             OnSelect="@(p => On従業員Changed(p.Number))" />
+    </aside>
+    <div class="proc-main">
 @if (_e is null)
 {
-    <MudAlert Severity="Severity.Info" Class="ma-4">従業員を選択してください。給与・賞与の年間集計を自動で取り込みます。</MudAlert>
+    <MudAlert Severity="Severity.Info" Class="ma-4">左の一覧（またはモバイルでは上部のドロップダウン）から従業員を選択してください。給与・賞与の年間集計を自動で取り込みます。</MudAlert>
 }
 else
 {
-    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mt-2" @bind-ActivePanelIndex="ActiveTab">
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mt-2" PanelClass="pt-3" @bind-ActivePanelIndex="ActiveTab">
 
         @* ===== 本人情報 ===== *@
         <MudTabPanel Text="本人情報">
@@ -464,7 +478,7 @@ else
         @* ===== 年末調整（源泉徴収簿の年末調整欄レイアウト。入力項目なし＝全て計算結果の表示） ===== *@
         <MudTabPanel Text="年末調整">
             <MudGrid Spacing="3">
-                <MudItem xs="12" md="8">
+                <MudItem xs="12">
                     <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
                         <div class="proc-section-title">年末調整（源泉徴収簿）</div>
                         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">
@@ -475,44 +489,50 @@ else
                                 <tr><th>区分</th><th style="text-align:right">金額</th><th style="text-align:right">税額</th></tr>
                             </thead>
                             <tbody>
-                                @簿行("給料・手当等", _e.給与計, _e.給与源泉計)
-                                @簿行("賞与等", _e.賞与計, _e.賞与源泉計)
-                                @簿行("計", _e.給与賞与計, _e.源泉計, 強調: true)
-                                @簿行("給与所得控除後の金額", _e.給与所得控除後, null)
-                                @簿行("所得金額調整控除額", _e.所得金額調整控除額, null)
-                                @簿行("給与所得控除後の金額（調整後）", _e.給与所得控除後調整控除後, null)
-                                @簿行("社会保険料等控除分（給与分）", _e.給与社保計 + _e.賞与社保計, null)
-                                @簿行("社会保険料等控除分（申告分）", _e.申告社保, null)
-                                @簿行("小規模企業共済等掛金の控除分", _e.小規模共済, null)
-                                @簿行("生命保険料の控除額", _e.生保控除, null)
-                                @簿行("地震保険料の控除額", _e.地震控除, null)
-                                @簿行("配偶者（特別）控除額", _e.配偶者特別控除, null)
-                                @簿行("特定親族特別控除額", _e.特定親族特別控除額, null)
-                                @簿行("扶養控除及び障害者等の控除額の合計額", _e.扶養控除等合計, null)
-                                @簿行("基礎控除額", _e.基礎控除, null)
-                                @簿行("所得控除額の合計額", _e.所得控除計, null, 強調: true)
-                                @簿行("差引課税給与所得金額及び算出所得税額", _e.課税所得, _e.所得税)
-                                @簿行("（特定増改築等）住宅借入金等特別控除額", null, _e.住宅控除)
-                                @簿行("年調所得税額", null, _e.年調所得税額)
-                                @簿行("年調年税額", null, _e.年調年税額, 強調: true)
-                                @簿行(_e.過不足額 >= 0 ? "差引超過額（還付）" : "差引不足額（徴収）", null, Math.Abs(_e.過不足額), 強調: true)
+                                @* 官製様式の欄番号。給料・手当／賞与は「総支給・社保控除(欠番)・税額」で3番ずつ消費し、①③/④⑥、計⑦から連番で最終㉗まで。 *@
+                                @簿行("給料・手当等", _e.給与計, _e.給与源泉計, "①", "③")
+                                @簿行("賞与等", _e.賞与計, _e.賞与源泉計, "④", "⑥")
+                                @簿行("計", _e.給与賞与計, _e.源泉計, "⑦", "⑧", 強調: true)
+                                @簿行("給与所得控除後の金額", _e.給与所得控除後, null, "⑨")
+                                @簿行("所得金額調整控除額", _e.所得金額調整控除額, null, "⑩")
+                                @簿行("給与所得控除後の金額（調整後）", _e.給与所得控除後調整控除後, null, "⑪")
+                                @簿行("社会保険料等控除分（給与分）", _e.給与社保計 + _e.賞与社保計, null, "⑫")
+                                @簿行("社会保険料等控除分（申告分）", _e.申告社保, null, "⑬")
+                                @簿行("小規模企業共済等掛金の控除分", _e.小規模共済, null, "⑭")
+                                @簿行("生命保険料の控除額", _e.生保控除, null, "⑮")
+                                @簿行("地震保険料の控除額", _e.地震控除, null, "⑯")
+                                @簿行("配偶者（特別）控除額", _e.配偶者特別控除, null, "⑰")
+                                @簿行("特定親族特別控除額", _e.特定親族特別控除額, null, "⑱")
+                                @簿行("扶養控除及び障害者等の控除額の合計額", _e.扶養控除等合計, null, "⑲")
+                                @簿行("基礎控除額", _e.基礎控除, null, "⑳")
+                                @簿行("所得控除額の合計額", _e.所得控除計, null, "㉑", 強調: true)
+                                @簿行("差引課税給与所得金額及び算出所得税額", _e.課税所得, _e.所得税, "㉒", "㉓")
+                                @簿行("（特定増改築等）住宅借入金等特別控除額", null, _e.住宅控除, null, "㉔")
+                                @簿行("年調所得税額", null, _e.年調所得税額, null, "㉕")
+                                @簿行("年調年税額", null, _e.年調年税額, null, "㉖", 強調: true)
+                                @簿行("差引超過額又は不足額", null, Math.Abs(_e.過不足額), null, "㉗", 強調: true)
                             </tbody>
                         </MudSimpleTable>
-                    </MudPaper>
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    <MudPaper Elevation="1" Class="pa-4 mb-3" Style="height:100%;">
-                        <div class="proc-section-title">申告書転記事項</div>
-                        <div class="pay-list">
-                            <div class="pay-row">
-                                <span class="pay-row__label">所得金額調整控除の適用</span>
-                                <span class="pay-row__amount"><span class="pay-amount-text">@(_e.所得金額調整控除適用 ? "有" : "無")</span></span>
-                            </div>
-                            @ReadRow("配偶者の合計所得金額", _e.配偶者所得)
-                            @ReadRow("旧長期損害保険料支払額", _e.長期損害)
-                            @ReadRow("小規模企業共済等掛金", _e.小規模共済)
-                            @ReadRow("国民年金保険料等", _e.国民年金保険料等)
-                        </div>
+
+                        @* 申告書転記事項（源泉徴収簿の「所得金額調整控除の適用」枠）：タイトル行＋データ行の横ストリップ。下罫線なし。 *@
+                        <table class="ye-tenki-table">
+                            <tbody>
+                                <tr class="ye-tenki-title">
+                                    <td>所得金額調整控除の適用</td>
+                                    <td>配偶者の合計所得金額</td>
+                                    <td>旧長期損害保険料支払額</td>
+                                    <td>⑫のうち小規模企業共済等掛金の金額</td>
+                                    <td>⑪のうち国民年金保険料等の金額</td>
+                                </tr>
+                                <tr class="ye-tenki-data">
+                                    <td>@(_e.所得金額調整控除適用 ? "有" : "無")</td>
+                                    <td>@円(_e.配偶者所得)</td>
+                                    <td>@円(_e.長期損害)</td>
+                                    <td>@円(_e.小規模共済)</td>
+                                    <td>@円(_e.国民年金保険料等)</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </MudPaper>
                 </MudItem>
                 <MudItem xs="12">
@@ -527,6 +547,8 @@ else
         </MudTabPanel>
     </MudTabs>
 }
+    </div>
+</div>
 
 @code {
     // 選択タブは回線単位で保持（別従業員へ切替えても、別画面から戻っても直前のタブを維持）。
@@ -539,6 +561,11 @@ else
     private int? _number;
     private YearEndEntry? _e;
     private bool _busy;
+
+    /// <summary>左一覧パネル用に対象従業員を詰め替える（副次表示＝就退区分）。</summary>
+    private List<EmployeeSelectPanel.EmpPickItem> PickItems()
+        => _targets.Select(t => new EmployeeSelectPanel.EmpPickItem(
+            t.Number, t.No, t.氏名, null, t.就退区分名, t.Retired, false)).ToList();
 
     protected override void OnInitialized()
     {
