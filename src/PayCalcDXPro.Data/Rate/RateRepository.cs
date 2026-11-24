@@ -55,6 +55,11 @@ public sealed class RateRepository
                 Save(RateSeed.料率());
         }
 
+        // 子育支援料率の後方互換シード：他の料率は設定済みで子育支援だけ未設定（0/NULL）の既存DBにも投入する。
+        // 上の一括シード条件（主要一般料率の合計）に子育支援が含まれないため、個別に補う。移行元 PayCalc2027.db T_料率：一般0.23／折半0.115。
+        Exec($"UPDATE T_料率 SET 子育支援一般料率 = 0.23 WHERE No = {No} AND IFNULL(子育支援一般料率, 0) = 0");
+        Exec($"UPDATE T_料率 SET 子育支援被保険者負担分 = 0.115 WHERE No = {No} AND IFNULL(子育支援被保険者負担分, 0) = 0");
+
         // 保険料額表：空なら現行DB由来の50等級を投入。
         using (var chk = _conn.CreateCommand())
         {
@@ -62,6 +67,9 @@ public sealed class RateRepository
             if (Convert.ToInt64(chk.ExecuteScalar()) == 0)
                 SaveTable(RateSeed.額表());
         }
+
+        // 子育支援額の後方互換：未設定(NULL)の等級を 標準報酬月額(短期)×折半0.115% で埋める（既存DB対応）。
+        Exec("UPDATE T_料率保険料額表 SET 子育支援 = ROUND(標準報酬月額_短期 * 0.00115, 1) WHERE 子育支援 IS NULL");
     }
 
     public RateSettings Load()
