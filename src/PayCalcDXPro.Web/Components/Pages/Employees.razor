@@ -134,7 +134,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error);
+            Snackbar.NotifyError("読み込みに失敗しました", ex);
         }
         await ReloadAsync();
     }
@@ -149,7 +149,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error);
+            Snackbar.NotifyError("読み込みに失敗しました", ex);
         }
         finally
         {
@@ -234,7 +234,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error);
+            Snackbar.NotifyError("読み込みに失敗しました", ex);
         }
     }
 
@@ -252,7 +252,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"並び順の保存に失敗しました：{ex.Message}", Severity.Error);
+            Snackbar.NotifyError("並び順の保存に失敗しました", ex);
         }
     }
 

@@ -109,7 +109,7 @@
             _round = _opt.既定回;
             EnsureValidRound();
         }
-        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("読み込みに失敗しました", ex); }
     }
 
     // 現在の種類で選択可能な回に _round を合わせる（無ければ先頭）。

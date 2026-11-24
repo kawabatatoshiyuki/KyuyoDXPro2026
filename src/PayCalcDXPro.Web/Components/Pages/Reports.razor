@@ -228,7 +228,7 @@
             _round = _opt.既定回;
             EnsureValidRound();
         }
-        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("読み込みに失敗しました", ex); }
     }
 
     private void EnsureValidRound()
@@ -258,7 +258,7 @@
             }
             _selected = _saved.ToHashSet();
         }
-        catch (Exception ex) { Snackbar.Add($"従業員の読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("従業員の読み込みに失敗しました", ex); }
     }
 
     private async Task OnReportChanged(string r)

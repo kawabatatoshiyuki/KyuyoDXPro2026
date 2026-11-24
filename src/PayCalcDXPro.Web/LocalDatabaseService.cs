@@ -114,7 +114,8 @@ public sealed class LocalDatabaseService
         }
         catch (Exception ex)
         {
-            return new DbStatus(false, $"接続エラー：{ex.Message}", 0, 0);
+            AppErrors.Log(ex, "DB接続エラー");
+            return new DbStatus(false, "接続エラーが発生しました。詳細はログを確認してください。", 0, 0);
         }
     }
 
@@ -3012,7 +3013,7 @@ public sealed class LocalDatabaseService
         if (!OperatingSystem.IsWindows()) return new BackupResult(false, "Windows専用です。");
         if (string.IsNullOrWhiteSpace(dir)) return new BackupResult(false, "バックアップ先を入力してください。");
         try { Directory.CreateDirectory(dir); }
-        catch (Exception ex) { return new BackupResult(false, $"バックアップ先フォルダを作成できません：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "バックアップ先フォルダ作成エラー"); return new BackupResult(false, "バックアップ先フォルダを作成できません。詳細はログを確認してください。"); }
 
         using var store = new SecureDataStore(DataDir, DataProtectionScope.CurrentUser);
         EnsureBackupSchema(store.Connection);
@@ -3049,7 +3050,7 @@ public sealed class LocalDatabaseService
             return new BackupResult(false, "コメントにファイル名として使えない文字が含まれています。");
 
         try { Directory.CreateDirectory(dir); }
-        catch (Exception ex) { return new BackupResult(false, $"バックアップ先フォルダを作成できません：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "バックアップ先フォルダ作成エラー"); return new BackupResult(false, "バックアップ先フォルダを作成できません。詳細はログを確認してください。"); }
 
         string stamp = DateTime.Now.ToString("yyyyMMddHHmmss");
         string 名前 = stamp + "_" + (string.IsNullOrEmpty(comment) ? "" : comment + "_") + "PayCalcDXPro.db";
@@ -3072,7 +3073,8 @@ public sealed class LocalDatabaseService
         }
         catch (Exception ex)
         {
-            return new BackupResult(false, $"バックアップに失敗しました：{ex.Message}");
+            AppErrors.Log(ex, "バックアップ失敗");
+            return new BackupResult(false, "バックアップに失敗しました。詳細はログを確認してください。");
         }
     }
 
@@ -3133,7 +3135,7 @@ public sealed class LocalDatabaseService
             Directory.CreateDirectory(full);
             return new BackupResult(true, "フォルダを作成しました。", full);
         }
-        catch (Exception ex) { return new BackupResult(false, $"フォルダを作成できません：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "フォルダ作成エラー"); return new BackupResult(false, "フォルダを作成できません。詳細はログを確認してください。"); }
     }
 
     /// <summary>暗号化DB本体のファイル名（SecureDataStore と同一）。</summary>
@@ -3175,7 +3177,7 @@ public sealed class LocalDatabaseService
             File.Delete(filePath);
             return new BackupResult(true, $"バックアップを削除しました：{name}");
         }
-        catch (Exception ex) { return new BackupResult(false, $"削除に失敗しました：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "バックアップ削除エラー"); return new BackupResult(false, "削除に失敗しました。詳細はログを確認してください。"); }
     }
 
     /// <summary>
@@ -3194,7 +3196,7 @@ public sealed class LocalDatabaseService
 
         byte[] dbKey;
         try { dbKey = DpapiKeyProtector.LoadOrCreate(Path.Combine(DataDir, "keys", "db.key"), 32, DataProtectionScope.CurrentUser); }
-        catch (Exception ex) { return new BackupResult(false, $"暗号鍵を取得できません：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "暗号鍵取得エラー"); return new BackupResult(false, "暗号鍵を取得できません。詳細はログを確認してください。"); }
         string 鍵 = Convert.ToBase64String(dbKey);
 
         var kind = DetectBackupKind(filePath, 鍵, out string? plainTemp);
@@ -3222,7 +3224,8 @@ public sealed class LocalDatabaseService
         }
         catch (Exception ex)
         {
-            return new BackupResult(false, $"復元に失敗しました：{ex.Message}");
+            AppErrors.Log(ex, "復元失敗");
+            return new BackupResult(false, "復元に失敗しました。詳細はログを確認してください。");
         }
     }
 
@@ -3242,7 +3245,7 @@ public sealed class LocalDatabaseService
 
         byte[] dbKey;
         try { dbKey = DpapiKeyProtector.LoadOrCreate(Path.Combine(DataDir, "keys", "db.key"), 32, DataProtectionScope.CurrentUser); }
-        catch (Exception ex) { return new BackupResult(false, $"暗号鍵を取得できません：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "暗号鍵取得エラー"); return new BackupResult(false, "暗号鍵を取得できません。詳細はログを確認してください。"); }
         string 鍵 = Convert.ToBase64String(dbKey);
 
         var kind = DetectBackupKind(filePath, 鍵, out string? plainTemp);
@@ -3281,7 +3284,8 @@ public sealed class LocalDatabaseService
         }
         catch (Exception ex)
         {
-            return new BackupResult(false, $"前年データの取込に失敗しました：{ex.Message}");
+            AppErrors.Log(ex, "前年データ取込失敗");
+            return new BackupResult(false, "前年データの取込に失敗しました。詳細はログを確認してください。");
         }
     }
 
@@ -3442,7 +3446,8 @@ public sealed class LocalDatabaseService
         }
         catch (Exception ex)
         {
-            return new BackupResult(false, $"取込に失敗しました：{ex.Message}");
+            AppErrors.Log(ex, "バックアップ取込失敗");
+            return new BackupResult(false, "取込に失敗しました。詳細はログを確認してください。");
         }
         finally
         {

@@ -161,7 +161,7 @@ else
     {
         _loading = true;
         try { _bundle = await Task.Run(() => Db.LoadRates()); }
-        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("読み込みに失敗しました", ex); }
         finally { _loading = false; }
     }
 
@@ -238,7 +238,7 @@ else
             await Task.Run(() => Db.SaveRates(toSave));
             Snackbar.Add("保険料率を登録しました。", Severity.Success);
         }
-        catch (Exception ex) { Snackbar.Add($"登録に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("登録に失敗しました", ex); }
         finally { _saving = false; }
     }
 }

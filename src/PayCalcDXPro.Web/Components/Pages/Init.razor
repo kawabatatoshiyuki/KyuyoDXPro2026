@@ -188,7 +188,7 @@
         try { _targets = Db.YearEnd支払調書対象(); }
         catch (Exception ex)
         {
-            Snackbar.Add($"支払調書の読み込みに失敗しました：{ex.Message}", Severity.Error);
+            Snackbar.NotifyError("支払調書の読み込みに失敗しました", ex);
             _targets = Array.Empty<YearEndInitTarget>();
         }
         try
@@ -197,7 +197,7 @@
             _給与候補 = Db.LoadPayrollMeta(1).支給回候補.Where(r => r.登録済).ToArray();
             _賞与候補 = Db.LoadBonusMeta(1).賞与回候補.Where(r => r.登録済).ToArray();
         }
-        catch (Exception ex) { Snackbar.Add($"支給日情報の読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("支給日情報の読み込みに失敗しました", ex); }
         _selected.Clear();
     }
 
@@ -217,7 +217,7 @@
             var r = Db.Init給与計算データ(_給与Scope == 0 ? null : _給与Scope);
             Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
         }
-        catch (Exception ex) { Snackbar.Add($"初期化に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("初期化に失敗しました", ex); }
         finally { _busy = false; }
     }
 
@@ -237,7 +237,7 @@
             var r = Db.Init賞与計算データ(_賞与Scope == 0 ? null : _賞与Scope);
             Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
         }
-        catch (Exception ex) { Snackbar.Add($"初期化に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("初期化に失敗しました", ex); }
         finally { _busy = false; }
     }
 
@@ -267,7 +267,7 @@
             Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
             if (r.Ok) 再読込();
         }
-        catch (Exception ex) { Snackbar.Add($"初期化に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("初期化に失敗しました", ex); }
         finally { _busy = false; }
     }
 
@@ -285,7 +285,7 @@
             Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
             if (r.Ok) 再読込();
         }
-        catch (Exception ex) { Snackbar.Add($"初期化に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("初期化に失敗しました", ex); }
         finally { _busy = false; }
     }
 
@@ -312,7 +312,7 @@
             var r = op();
             Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
         }
-        catch (Exception ex) { Snackbar.Add($"初期化に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("初期化に失敗しました", ex); }
         finally { _busy = false; }
     }
 }

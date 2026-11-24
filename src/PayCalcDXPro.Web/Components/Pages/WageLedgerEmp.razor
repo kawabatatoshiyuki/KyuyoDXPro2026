@@ -171,7 +171,7 @@
             _kind = _opt.既定種別 == "賞与" ? "bonus" : "salary";
             await ReloadEmployees();
         }
-        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("読み込みに失敗しました", ex); }
     }
 
     // 種別（給与/賞与）に応じた従業員選択リストを読み込み、選択を対象全員に初期化する。

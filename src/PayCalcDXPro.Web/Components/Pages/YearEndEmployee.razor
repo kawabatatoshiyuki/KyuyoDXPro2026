@@ -258,7 +258,8 @@
 }
 else
 {
-    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mt-2" PanelClass="pt-3" @bind-ActivePanelIndex="ActiveTab">
+    <div class="ye-tabs">
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mt-2" @bind-ActivePanelIndex="ActiveTab">
 
         @* ===== 本人情報 ===== *@
         <MudTabPanel Text="本人情報">
@@ -539,6 +540,7 @@ else
             </MudGrid>
         </MudTabPanel>
     </MudTabs>
+    </div>
 }
     </div>
 </div>
@@ -604,7 +606,7 @@ else
             Db.ComputeYearEnd(_e);
             Snackbar.Add("計算しました。", Severity.Success);
         }
-        catch (Exception ex) { Snackbar.Add($"計算に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("計算に失敗しました", ex); }
         finally { _busy = false; }
     }
 
@@ -619,7 +621,7 @@ else
             Db.SaveYearEnd(_e);
             Snackbar.Add($"{_targets.FirstOrDefault(t => t.Number == _e.Number)?.氏名} さんの年末調整を保存しました。", Severity.Success);
         }
-        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("保存に失敗しました", ex); }
         finally { _busy = false; }
     }
 
