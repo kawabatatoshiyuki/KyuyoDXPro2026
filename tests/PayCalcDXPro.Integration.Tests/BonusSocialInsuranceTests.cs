@@ -34,15 +34,15 @@ public class BonusSocialInsuranceTests : IDisposable
     {
         Skip.IfNot(Available, "現行DBが見つからないためスキップ");
 
-        // 総支給50万・介護なし：健保5%・厚年9.15%・雇用6/1000
+        // 総支給50万・介護なし：健保4.955%・厚年9.15%・雇用6/1000（令和の協会けんぽ料率）
         SocialInsuranceResult r = SiCalc().Calculate(500_000m, 介護保険対象: false);
-        Assert.Equal(25_000m, r.健康保険);
+        Assert.Equal(24_775m, r.健康保険);
         Assert.Equal(0m, r.介護保険);
         Assert.Equal(45_750m, r.厚生年金);
-        Assert.Equal(3_000m, r.雇用保険);
+        Assert.Equal(2_750m, r.雇用保険);     // 500,000 × 5.5/1000（令和7年度 雇用保険料率）
 
-        // 介護あり：0.91%
-        Assert.Equal(4_550m, SiCalc().Calculate(500_000m, 介護保険対象: true).介護保険);
+        // 介護あり：0.795%（令和の協会けんぽ介護料率 折半）
+        Assert.Equal(3_975m, SiCalc().Calculate(500_000m, 介護保険対象: true).介護保険);
     }
 
     [SkippableFact]
@@ -52,7 +52,7 @@ public class BonusSocialInsuranceTests : IDisposable
 
         SocialInsuranceResult r = SiCalc().Calculate(2_000_000m);
         Assert.Equal(137_250m, r.厚生年金);   // 1,500,000 × 9.15%
-        Assert.Equal(100_000m, r.健康保険);   // 2,000,000 × 5%（健保は累計573万まで）
+        Assert.Equal(99_100m, r.健康保険);    // 2,000,000 × 4.955%（健保は累計573万まで）
     }
 
     [SkippableFact]
@@ -62,7 +62,7 @@ public class BonusSocialInsuranceTests : IDisposable
 
         // 既支給550万＋今回50万＝600万＞573万。健保用標準賞与＝50万−(600万−573万)＝23万
         SocialInsuranceResult r = SiCalc().Calculate(500_000m, 既支給標準賞与額累計: 5_500_000m);
-        Assert.Equal(11_500m, r.健康保険);    // 230,000 × 5%
+        Assert.Equal(11_396m, r.健康保険);    // 230,000 × 4.955%
         Assert.Equal(45_750m, r.厚生年金);    // 厚年は1回上限のみ（500,000 × 9.15%）
     }
 

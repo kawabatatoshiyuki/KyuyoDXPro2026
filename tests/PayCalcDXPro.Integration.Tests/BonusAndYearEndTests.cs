@@ -37,14 +37,14 @@ public class BonusAndYearEndTests : IDisposable
 
         var calc = new BonusCalculator(_repo!.LoadBonusTaxRateTable());
 
-        // 前月給与(社保控除後)30万・扶養0人 → 賞与率 8.168%（現行 T_賞与源泉徴収税額甲）
+        // 前月給与(社保控除後)30万・扶養0人 → 賞与率 6.126%（現行 T_賞与源泉徴収税額甲・令和改正後）
         BonusResult r = calc.Calculate(
             賞与課税支給: 500_000m, 賞与社会保険料: 70_000m,
             前月社保控除後給与: 300_000m, 扶養親族等の数: 0);
 
-        Assert.Equal(8.168m, r.賞与に乗ずる率);
+        Assert.Equal(6.126m, r.賞与に乗ずる率);
         Assert.Equal(430_000m, r.課税対象額);
-        Assert.Equal(35_122m, r.賞与所得税); // floor(430000 * 8.168%)
+        Assert.Equal(26_341m, r.賞与所得税); // floor(430000 * 6.126%)
     }
 
     [SkippableFact]

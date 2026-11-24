@@ -95,11 +95,11 @@ public class DependentDeductionTests : IDisposable
 
         YearEndResult r = yearEnd.CalculateWithDeductions(input, ded);
 
-        // 所得控除合計 = 社保750,000 + 生保32,500 + 配偶者380,000 + 扶養630,000 + 基礎480,000
-        Assert.Equal(2_272_500m, r.所得控除額の合計);
-        Assert.Equal(1_287_000m, r.課税給与所得金額);
-        Assert.Equal(64_350m, r.算出所得税額);
-        Assert.Equal(65_700m, r.年調年税額);
+        // 所得控除合計 = 社保750,000 + 生保32,500 + 配偶者380,000 + 扶養630,000 + 基礎680,000（令和8年分）
+        Assert.Equal(2_472_500m, r.所得控除額の合計);
+        Assert.Equal(1_087_000m, r.課税給与所得金額);
+        Assert.Equal(54_350m, r.算出所得税額);
+        Assert.Equal(55_400m, r.年調年税額);
     }
 
     public void Dispose()

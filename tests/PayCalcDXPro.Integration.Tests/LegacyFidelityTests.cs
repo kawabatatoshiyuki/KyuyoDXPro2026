@@ -40,8 +40,8 @@ public class LegacyFidelityTests : IDisposable
 
         WithholdingTaxTables t = _repo!.LoadWithholdingTaxTables();
 
-        Assert.Equal(6, t.給与所得控除.Count);
-        Assert.Equal(4, t.基礎控除.Count);
+        Assert.Equal(5, t.給与所得控除.Count);   // 令和7年度改正で給与所得控除の区分が6→5
+        Assert.Equal(5, t.基礎控除.Count);   // 令和7年度改正で月次源泉の基礎控除区分が4→5
         Assert.Equal(7, t.税率速算.Count);
         Assert.Equal(31667m, t.扶養控除単価);
 
@@ -76,13 +76,13 @@ public class LegacyFidelityTests : IDisposable
         SocialInsuranceTable table = _repo!.LoadSocialInsuranceTable();
         var calc = new TableBasedSocialInsuranceCalculator(table);
 
-        // 報酬月額 300,000 → 健保15,000 / 介護2,730 / 厚年27,450（現行DB実測値）
+        // 報酬月額 300,000 → 健保14,865 / 介護2,385 / 厚年27,450（現行DB実測値・令和料率）
         SocialInsuranceResult r = calc.Calculate(報酬月額: 300_000m, 総支給額: 310_000m, 介護保険対象: true);
 
-        Assert.Equal(15_000m, r.健康保険);
-        Assert.Equal(2_730m, r.介護保険);
+        Assert.Equal(14_865m, r.健康保険);
+        Assert.Equal(2_385m, r.介護保険);
         Assert.Equal(27_450m, r.厚生年金);
-        Assert.Equal(1_860m, r.雇用保険); // floor(310000 * 0.006)
+        Assert.Equal(1_705m, r.雇用保険); // floor(310000 * 0.0055)
     }
 
     [SkippableFact]
@@ -103,7 +103,7 @@ public class LegacyFidelityTests : IDisposable
             介護保険対象 = false,
         });
 
-        Assert.Equal(15_000m, r.社会保険.健康保険);
+        Assert.Equal(14_865m, r.社会保険.健康保険);
         Assert.Equal(27_450m, r.社会保険.厚生年金);
         Assert.Equal(r.総支給額 - r.控除合計, r.差引支給額);
         Assert.True(r.所得税 > 0m);

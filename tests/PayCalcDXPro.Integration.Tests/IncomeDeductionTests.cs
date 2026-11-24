@@ -33,10 +33,11 @@ public class IncomeDeductionTests : IDisposable
     private IncomeDeductionCalculator Calc() => new(_repo!.LoadIncomeDeductionTables());
 
     [SkippableFact]
-    public void 基礎控除_合計所得2400万以下は48万円()
+    public void 基礎控除_令和8年分の金額区分()
     {
         Skip.IfNot(Available, "現行DBが見つからないためスキップ");
-        Assert.Equal(480_000m, Calc().基礎控除(3_560_000m));
+        // 令和7年度改正（令和7・8年分）の基礎控除：合計所得336万超489万以下は68万円。
+        Assert.Equal(680_000m, Calc().基礎控除(3_560_000m));
         Assert.Equal(320_000m, Calc().基礎控除(24_300_000m)); // 2400万超〜2450万
         Assert.Equal(0m, Calc().基礎控除(30_000_000m));        // 2500万超
     }
@@ -89,13 +90,13 @@ public class IncomeDeductionTests : IDisposable
         YearEndResult r = yearEnd.CalculateWithDeductions(input, Calc());
 
         Assert.Equal(3_560_000m, r.給与所得控除後調整後);
-        Assert.Equal(480_000m, r.基礎控除);
+        Assert.Equal(680_000m, r.基礎控除);               // 令和8年分（356万は336万超489万以下）
         Assert.Equal(380_000m, r.配偶者控除);
         Assert.Equal(32_500m, r.生命保険料控除);          // 介護医療5万
-        Assert.Equal(1_642_500m, r.所得控除額の合計);     // 750,000 + 32,500 + 380,000 + 480,000
-        Assert.Equal(1_917_000m, r.課税給与所得金額);
-        Assert.Equal(95_850m, r.算出所得税額);             // 1,917,000 × 5%
-        Assert.Equal(97_800m, r.年調年税額);              // ×102.1%、100円未満切捨て
+        Assert.Equal(1_842_500m, r.所得控除額の合計);     // 750,000 + 32,500 + 380,000 + 680,000
+        Assert.Equal(1_717_000m, r.課税給与所得金額);
+        Assert.Equal(85_850m, r.算出所得税額);             // 1,717,000 × 5%
+        Assert.Equal(87_600m, r.年調年税額);              // ×102.1%、100円未満切捨て
     }
 
     public void Dispose()
