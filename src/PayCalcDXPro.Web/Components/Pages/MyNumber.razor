@@ -150,7 +150,7 @@ else
             Snackbar.Add($"{_view.従業員氏名} さんのマイナンバーを保存しました。", Severity.Success);
             MoveNext();
         }
-        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("保存に失敗しました", ex); }
         finally { _busy = false; }
     }
 

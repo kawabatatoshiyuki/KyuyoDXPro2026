@@ -373,7 +373,7 @@ else
     {
         _loading = true;
         try { _b = await Task.Run(() => Db.LoadTaxTables()); }
-        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("読み込みに失敗しました", ex); }
         finally { _loading = false; }
     }
 
@@ -386,7 +386,7 @@ else
             await Task.Run(() => Db.SaveTaxTables(toSave));
             Snackbar.Add("月額表を登録しました。", Severity.Success);
         }
-        catch (Exception ex) { Snackbar.Add($"登録に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("登録に失敗しました", ex); }
         finally { _saving = false; }
     }
 }

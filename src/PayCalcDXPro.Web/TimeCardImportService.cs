@@ -236,7 +236,7 @@ public sealed class TimeCardImportService
 
         string[] lines;
         try { lines = File.ReadAllLines(filePath, System.Text.Encoding.UTF8); }
-        catch (Exception ex) { return Fail($"ファイルを読めません：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "タイムカードファイル読込エラー"); return Fail("ファイルを読めません。ファイル形式をご確認ください。"); }
         if (lines.Length < 2) return Fail("データ行がありません。");
 
         var meta = _db.LoadPayrollMeta(支給回);
@@ -342,7 +342,8 @@ public sealed class TimeCardImportService
             catch (Exception ex)
             {
                 failed++;
-                firstError ??= $"No.{r.No} {r.氏名}：{ex.Message}";
+                AppErrors.Log(ex, $"タイムカード取込エラー No.{r.No}");
+                firstError ??= $"No.{r.No} {r.氏名}：取り込み中にエラーが発生しました。";
             }
         }
 

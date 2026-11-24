@@ -115,7 +115,7 @@
             _employees = await Task.Run(() => Db.ListEmployees());
             _selected = _employees.Select(x => x.Number).ToHashSet();   // 既定は全員選択
         }
-        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("読み込みに失敗しました", ex); }
     }
 
     private bool MatchSearch(EmployeeListItem it)

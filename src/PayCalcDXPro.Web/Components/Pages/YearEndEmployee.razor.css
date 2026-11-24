@@ -64,6 +64,34 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
+/* 金額/税額欄の番号（.ye-cell/.ye-no/.ye-val）は、分離CSSだとMudSimpleTable内の生成要素へ
+   スコープが一致せず効かないため、グローバルの wwwroot/app.css で指定している。 */
+
+/* 申告書転記事項（所得金額調整控除の適用 枠）：タイトル行＋データ行の横ストリップ。下罫線なし。 */
+.ye-tenki-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    table-layout: fixed;
+}
+.ye-tenki-table td {
+    border: 1px solid var(--mud-palette-divider);
+    padding: 4px 8px;
+    font-size: .8rem;
+    line-height: 1.3;
+    word-break: break-word;
+}
+.ye-tenki-table .ye-tenki-title td {
+    color: var(--mud-palette-text-secondary);
+    background: var(--mud-palette-background-grey);
+    text-align: center;
+}
+.ye-tenki-table .ye-tenki-data td {
+    text-align: right;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    border-bottom: none;   /* 下罫線は不要 */
+}
 
 /* 支給情報タブ：給与/賞与の金額表。固定レイアウトで列幅を桁(最大1億+円)に合わせ、
    ヘッダー文字でテーブルが横に広がってページ（＝固定ヘッダー）を押し広げないようにする。 */

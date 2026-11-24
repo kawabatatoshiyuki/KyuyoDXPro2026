@@ -62,6 +62,9 @@ if (standalone)
 
 var app = builder.Build();
 
+// 利用者向けエラー通知ヘルパーのロガーを初期化（例外詳細はサーバーログのみに記録し、画面には汎用文言だけ出す）。
+PayCalcDXPro.Web.AppErrors.Configure(app.Services.GetRequiredService<ILoggerFactory>());
+
 // アプリ終了時の自動バックアップ（現行の終了時自動バックアップ相当）。設定がオンのときだけ実行する。
 app.Lifetime.ApplicationStopping.Register(() =>
 {
@@ -161,10 +164,21 @@ app.MapGet("/logout", async (HttpContext http, LocalDatabaseService db) =>
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
+// データ系エンドポイント（PDF/CSV）の多層防御（認可）。
+// ログインゲート（ミドルウェア）に加え、セキュリティアカウント設定時は未認証アクセスを各エンドポイント自身でも拒否する。
+// ＝「ログイン確認（認証）」と「データ取得可否の確認（認可）」を別層で実装する。
+var dataApi = app.MapGroup("").AddEndpointFilter(async (ctx, next) =>
+{
+    var gate = ctx.HttpContext.RequestServices.GetRequiredService<LocalDatabaseService>();
+    if (gate.SecurityAccountExists() && ctx.HttpContext.User.Identity?.IsAuthenticated != true)
+        return Results.Forbid();
+    return await next(ctx);
+});
+
 // 支払明細書PDF。inline で返しブラウザのPDFビューア（印刷/保存可）でプレビューする。
 // kind=salary|bonus, round=支給回/賞与回, two=A4に2明細, nums=対象従業員Number(カンマ区切り。空＝保存済み全員)、
 // empty=賃金が発生していない従業員も空明細で含める。
-app.MapGet("/payroll/payslip/pdf", (LocalDatabaseService db, string? kind, int round, bool? two, string? nums, bool? empty) =>
+dataApi.MapGet("/payroll/payslip/pdf", (LocalDatabaseService db, string? kind, int round, bool? two, string? nums, bool? empty) =>
 {
     var numbers = (nums ?? "")
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -177,7 +191,7 @@ app.MapGet("/payroll/payslip/pdf", (LocalDatabaseService db, string? kind, int r
 });
 
 // 導入設定の台帳印刷。kind=setup（導入設定台帳）/ employee（従業員台帳。nums=対象Number。空＝全員）。
-app.MapGet("/setup/ledger/pdf", (LocalDatabaseService db, string? kind, string? nums) =>
+dataApi.MapGet("/setup/ledger/pdf", (LocalDatabaseService db, string? kind, string? nums) =>
 {
     byte[] bytes;
     if (kind == "employee")
@@ -196,7 +210,7 @@ app.MapGet("/setup/ledger/pdf", (LocalDatabaseService db, string? kind, string? 
 });
 
 // 賃金台帳（支給日別）。kind=salary（給与）/ bonus（賞与）。round=支給回/賞与回。dept=部門名（空＝全部門）。empty=賃金なしも含める。
-app.MapGet("/payroll/wage-ledger/pdf", (LocalDatabaseService db, string? kind, int round, string? dept, bool? empty) =>
+dataApi.MapGet("/payroll/wage-ledger/pdf", (LocalDatabaseService db, string? kind, int round, string? dept, bool? empty) =>
 {
     string? 部門 = string.IsNullOrWhiteSpace(dept) ? null : dept;
     var bytes = kind == "bonus"
@@ -206,29 +220,32 @@ app.MapGet("/payroll/wage-ledger/pdf", (LocalDatabaseService db, string? kind, i
 });
 
 // 賃金台帳（従業員別）。kind=salary（給与）/ bonus（賞与）。dept=部門名（空＝全部門）。empty=賃金なしも含める。
-app.MapGet("/payroll/wage-ledger-emp/pdf", (LocalDatabaseService db, string? kind, string? dept, bool? empty) =>
+// nums=出力対象の従業員 Number（カンマ区切り。空＝部門・賃金なし条件に従い全員）。
+dataApi.MapGet("/payroll/wage-ledger-emp/pdf", (LocalDatabaseService db, string? kind, string? dept, bool? empty, string? nums) =>
 {
     string? 部門 = string.IsNullOrWhiteSpace(dept) ? null : dept;
-    var bytes = db.BuildWageLedgerEmpPdf(kind == "bonus", 部門, empty ?? false);
+    var 対象 = (nums ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(s => int.TryParse(s, out var n) ? n : (int?)null).Where(n => n.HasValue).Select(n => n!.Value).ToHashSet();
+    var bytes = db.BuildWageLedgerEmpPdf(kind == "bonus", 部門, empty ?? false, 対象.Count > 0 ? 対象 : null);
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
 });
 
 // 関連帳票：銀行振込一覧表。kind=salary（給与）/ bonus（賞与）。round=処理回。
-app.MapGet("/payroll/bank-transfer/pdf", (LocalDatabaseService db, string? kind, int round) =>
+dataApi.MapGet("/payroll/bank-transfer/pdf", (LocalDatabaseService db, string? kind, int round) =>
 {
     var bytes = db.BuildBankTransferPdf(kind == "bonus", round);
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
 });
 
 // 関連帳票：現金支給金種表。kind=salary/bonus。round=処理回。yen2000=2,000円札を含める。
-app.MapGet("/payroll/kinsyu/pdf", (LocalDatabaseService db, string? kind, int round, bool? yen2000) =>
+dataApi.MapGet("/payroll/kinsyu/pdf", (LocalDatabaseService db, string? kind, int round, bool? yen2000) =>
 {
     var bytes = db.BuildKinsyuPdf(kind == "bonus", round, yen2000 ?? false);
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
 });
 
 // 関連帳票：給与/賞与封筒印刷。kind=salary/bonus。round=処理回。landscape=横長封筒。empty=賃金なしも含める。nums=対象Number（空＝当回保存済み全員）。
-app.MapGet("/payroll/envelope/pdf", (LocalDatabaseService db, string? kind, int round, bool? landscape, bool? empty, string? nums) =>
+dataApi.MapGet("/payroll/envelope/pdf", (LocalDatabaseService db, string? kind, int round, bool? landscape, bool? empty, string? nums) =>
 {
     var numbers = (nums ?? "")
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -239,35 +256,35 @@ app.MapGet("/payroll/envelope/pdf", (LocalDatabaseService db, string? kind, int 
 });
 
 // 年末調整：退職所得の源泉徴収票・特別徴収票（現行 R_退職源泉）。no=整理番号（1件＝4面付け1ページ）。
-app.MapGet("/year-end/retirement/pdf", (LocalDatabaseService db, int no) =>
+dataApi.MapGet("/year-end/retirement/pdf", (LocalDatabaseService db, int no) =>
 {
     var bytes = db.BuildRetirementWithholdingPdf(no);
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
 });
 
 // 年末調整：報酬、料金、契約金及び賞金の支払調書（現行 R_報酬）。no=整理番号（1件＝4面付け1ページ）。
-app.MapGet("/year-end/reward/pdf", (LocalDatabaseService db, int no) =>
+dataApi.MapGet("/year-end/reward/pdf", (LocalDatabaseService db, int no) =>
 {
     var bytes = db.BuildRewardPdf(no);
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
 });
 
 // 年末調整：不動産の使用料等の支払調書（現行 R_不動産）。no=整理番号（1件＝4面付け1ページ）。
-app.MapGet("/year-end/realestate/pdf", (LocalDatabaseService db, int no) =>
+dataApi.MapGet("/year-end/realestate/pdf", (LocalDatabaseService db, int no) =>
 {
     var bytes = db.BuildRealEstatePdf(no);
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
 });
 
 // 年末調整：不動産等の譲受けの対価の支払調書（現行 R_不動産譲受）。no=整理番号（1件＝4面付け1ページ）。
-app.MapGet("/year-end/realestate-transfer/pdf", (LocalDatabaseService db, int no) =>
+dataApi.MapGet("/year-end/realestate-transfer/pdf", (LocalDatabaseService db, int no) =>
 {
     var bytes = db.BuildRealEstateTransferPdf(no);
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
 });
 
 // 年末調整：不動産等の売買又は貸付けのあっせん手数料の支払調書（現行 R_不動産あっせん）。no=整理番号（1件＝4面付け1ページ）。
-app.MapGet("/year-end/realestate-mediation/pdf", (LocalDatabaseService db, int no) =>
+dataApi.MapGet("/year-end/realestate-mediation/pdf", (LocalDatabaseService db, int no) =>
 {
     var bytes = db.BuildRealEstateMediationPdf(no);
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
@@ -275,7 +292,7 @@ app.MapGet("/year-end/realestate-mediation/pdf", (LocalDatabaseService db, int n
 
 // 年末調整：給与所得の源泉徴収票（現行 R_源泉徴収票）。numbers=カンマ区切りの従業員Number（複数可・全員を1つの複数ページPDFに）。
 // 後方互換で number（単一）も受け付ける。種別/元号/年は任意（既定あり）。
-app.MapGet("/year-end/withholding-slip/pdf", (LocalDatabaseService db, int? number, string? numbers,
+dataApi.MapGet("/year-end/withholding-slip/pdf", (LocalDatabaseService db, int? number, string? numbers,
     string? 種別, string? 元号, string? 年) =>
 {
     int[] nums = (numbers ?? number?.ToString() ?? "")
@@ -288,7 +305,7 @@ app.MapGet("/year-end/withholding-slip/pdf", (LocalDatabaseService db, int? numb
 });
 
 // 年末調整：給与支払報告書（個人別明細書）（現行 R_給与支払報告書）。numbers=カンマ区切り。種別/年は任意。
-app.MapGet("/year-end/pay-report/pdf", (LocalDatabaseService db, int? number, string? numbers,
+dataApi.MapGet("/year-end/pay-report/pdf", (LocalDatabaseService db, int? number, string? numbers,
     string? 種別, string? 年) =>
 {
     int[] nums = (numbers ?? number?.ToString() ?? "")
@@ -301,7 +318,7 @@ app.MapGet("/year-end/pay-report/pdf", (LocalDatabaseService db, int? number, st
 });
 
 // 年末調整：給与所得に対する源泉徴収簿（現行 R_徴収簿）。numbers=カンマ区切り（複数可・全員を1つの複数ページPDFに）。元号/年は任意。
-app.MapGet("/year-end/withholding-ledger/pdf", (LocalDatabaseService db, int? number, string? numbers,
+dataApi.MapGet("/year-end/withholding-ledger/pdf", (LocalDatabaseService db, int? number, string? numbers,
     string? 元号, string? 年) =>
 {
     int[] nums = (numbers ?? number?.ToString() ?? "")
@@ -314,21 +331,21 @@ app.MapGet("/year-end/withholding-ledger/pdf", (LocalDatabaseService db, int? nu
 });
 
 // 年末調整 集計表（納付書用）。syukei=1 納期特例(7〜12月)/2 一般(12月のみ)、syouyo=1〜5（含む賞与の範囲）。
-app.MapGet("/year-end/summary/pdf", (LocalDatabaseService db, int? syukei, int? syouyo) =>
+dataApi.MapGet("/year-end/summary/pdf", (LocalDatabaseService db, int? syukei, int? syouyo) =>
 {
     var bytes = db.BuildSummaryPdf(syukei ?? 1, syouyo ?? 1);
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
 });
 
 // 給与所得の源泉徴収票等の法定調書合計表（現行 R_合計表）。全社集計のため引数なし。
-app.MapGet("/year-end/legal-record/pdf", (LocalDatabaseService db) =>
+dataApi.MapGet("/year-end/legal-record/pdf", (LocalDatabaseService db) =>
 {
     var bytes = db.BuildLegalRecordSummaryPdf();
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
 });
 
 // 給与支払報告書（総括表）（現行 R_総括表）。全社集計のため引数なし（提出先最大4件＝4面付け1ページ）。
-app.MapGet("/year-end/pay-report-summary/pdf", (LocalDatabaseService db) =>
+dataApi.MapGet("/year-end/pay-report-summary/pdf", (LocalDatabaseService db) =>
 {
     var bytes = db.BuildPayReportSummaryPdf();
     return bytes.Length == 0 ? Results.NotFound() : Results.File(bytes, "application/pdf");
@@ -337,7 +354,7 @@ app.MapGet("/year-end/pay-report-summary/pdf", (LocalDatabaseService db) =>
 // 法定調書の印刷ハブ（現行 F_法定調書印刷）。reports=カンマ区切りの帳票キー
 // （soukatu/taishoku/houshu/fudousan/jouto/assen/goukei）、teishutu=1 提出分のみ／2 全て。
 // 選択帳票を1つの複数ページPDFに結合して返す。
-app.MapGet("/year-end/legal-documents/pdf", (LocalDatabaseService db, string? reports, int? teishutu) =>
+dataApi.MapGet("/year-end/legal-documents/pdf", (LocalDatabaseService db, string? reports, int? teishutu) =>
 {
     string[] keys = (reports ?? "")
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -367,7 +384,7 @@ app.MapGet("/year-end/legal-documents/pdf", (LocalDatabaseService db, string? re
 });
 
 // アクセスログ（操作ログ）の CSV 出力。現行 F_アクセスログ参照出力 のログ出力に相当。
-app.MapGet("/setup/audit-log/csv", (LocalDatabaseService db) =>
+dataApi.MapGet("/setup/audit-log/csv", (LocalDatabaseService db) =>
 {
     // セキュリティアカウント未設定時はマイナンバー管理の操作不可（現行 DN006E）。直URLでのログ取得も塞ぐ。
     if (!db.SecurityAccountExists()) return Results.Forbid();
@@ -379,7 +396,7 @@ app.MapGet("/setup/audit-log/csv", (LocalDatabaseService db) =>
 });
 
 // 会社情報（基本情報）の CSV 出力。ログインゲート配下（未認証は /login へ誘導）。
-app.MapGet("/setup/company/csv", (LocalDatabaseService db) =>
+dataApi.MapGet("/setup/company/csv", (LocalDatabaseService db) =>
 {
     var bytes = db.BuildCompanyCsv();
     return bytes.Length == 0
@@ -388,7 +405,7 @@ app.MapGet("/setup/company/csv", (LocalDatabaseService db) =>
 });
 
 // 従業員（基本情報）の CSV 出力。nums＝カンマ区切りの従業員Number（未指定なら全員）。
-app.MapGet("/setup/employees/csv", (LocalDatabaseService db, string? nums) =>
+dataApi.MapGet("/setup/employees/csv", (LocalDatabaseService db, string? nums) =>
 {
     var numbers = (nums ?? "")
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

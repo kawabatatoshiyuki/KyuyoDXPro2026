@@ -77,6 +77,10 @@ public sealed record WageLedgerOptions(
     string 既定種別,
     int 既定回);
 
+/// <summary>賃金台帳（従業員別）の従業員選択リストの1件。賃金あり＝当年に給与（賞与）データがある。</summary>
+public sealed record WageLedgerEmpSel(
+    int Number, string No, string 氏名, string フリガナ, string 部門名, bool 退職, bool 賃金あり);
+
 /// <summary>
 /// スタンドアロン版のローカル暗号化DB（<see cref="SecureDataStore"/>）への接続状態を提供する。
 /// 単一ユーザーPC想定で DPAPI は CurrentUser。Windows専用。
@@ -110,7 +114,8 @@ public sealed class LocalDatabaseService
         }
         catch (Exception ex)
         {
-            return new DbStatus(false, $"接続エラー：{ex.Message}", 0, 0);
+            AppErrors.Log(ex, "DB接続エラー");
+            return new DbStatus(false, "接続エラーが発生しました。詳細はログを確認してください。", 0, 0);
         }
     }
 
@@ -2134,7 +2139,37 @@ public sealed class LocalDatabaseService
     // ===== 賃金台帳（従業員別）：現行 R_給台帳従／R_賞台帳従 =====
 
     /// <summary>賃金台帳（従業員別）PDF。従業員1人を1ページとし、列＝支給回（月／賞与回）＋年間合計。</summary>
-    public byte[] BuildWageLedgerEmpPdf(bool is賞与, string? 部門名, bool withEmpty)
+    /// <summary>賃金台帳（従業員別）の従業員選択リスト。当年に給与／賞与データのある従業員を「賃金あり」とする。</summary>
+    public IReadOnlyList<WageLedgerEmpSel> GetWageLedgerEmpList(bool is賞与)
+    {
+        var emps = ListEmployees();
+        var 賃金あり = new HashSet<int>();
+        if (OperatingSystem.IsWindows())
+        {
+            using var store = new SecureDataStore(DataDir, DataProtectionScope.CurrentUser);
+            if (!is賞与)
+            {
+                var repo = new PayrollTranRepository(store.Connection);
+                repo.EnsureSchema();
+                for (int k = 1; k <= 12; k++)
+                    foreach (var e in repo.ListByRound(k))
+                        if ((e.データ個数 ?? 0) != 0 && int.TryParse(e.Number, out var n)) 賃金あり.Add(n);
+            }
+            else
+            {
+                var repo = new BonusTranRepository(store.Connection);
+                repo.EnsureSchema();
+                for (int k = 1; k <= 4; k++)
+                    foreach (var e in repo.ListByRound(k))
+                        if ((e.データ個数 ?? 0) != 0 && int.TryParse(e.Number, out var n)) 賃金あり.Add(n);
+            }
+        }
+        return emps.Select(emp => new WageLedgerEmpSel(
+            emp.Number, emp.No, emp.氏名, emp.フリガナ, emp.部門名, emp.退職, 賃金あり.Contains(emp.Number))).ToList();
+    }
+
+    /// <param name="対象">出力対象の従業員 Number。null または空なら（部門・賃金なし条件に従い）全員。</param>
+    public byte[] BuildWageLedgerEmpPdf(bool is賞与, string? 部門名, bool withEmpty, IReadOnlyCollection<int>? 対象 = null)
     {
         if (!OperatingSystem.IsWindows()) return Array.Empty<byte>();
         var company = LoadCompany();
@@ -2176,6 +2211,7 @@ public sealed class LocalDatabaseService
             foreach (var emp in emps)
             {
                 if (部門 != null && emp.部門名 != 部門) continue;
+                if (対象 is { Count: > 0 } && !対象.Contains(emp.Number)) continue;
                 var es = rounds.Select(k => byRound[k].TryGetValue(emp.Number.ToString(), out var e) ? e : null).ToList();
                 if (!withEmpty && !es.Any(e => e is not null && (e.データ個数 ?? 0) != 0)) continue;
 
@@ -2255,6 +2291,7 @@ public sealed class LocalDatabaseService
             foreach (var emp in emps)
             {
                 if (部門 != null && emp.部門名 != 部門) continue;
+                if (対象 is { Count: > 0 } && !対象.Contains(emp.Number)) continue;
                 var es = Enumerable.Range(1, 4).Select(k => byRound[k].TryGetValue(emp.Number.ToString(), out var e) ? e : null).ToList();
                 if (!withEmpty && !es.Any(e => e is not null && (e.データ個数 ?? 0) != 0)) continue;
 
@@ -2976,7 +3013,7 @@ public sealed class LocalDatabaseService
         if (!OperatingSystem.IsWindows()) return new BackupResult(false, "Windows専用です。");
         if (string.IsNullOrWhiteSpace(dir)) return new BackupResult(false, "バックアップ先を入力してください。");
         try { Directory.CreateDirectory(dir); }
-        catch (Exception ex) { return new BackupResult(false, $"バックアップ先フォルダを作成できません：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "バックアップ先フォルダ作成エラー"); return new BackupResult(false, "バックアップ先フォルダを作成できません。詳細はログを確認してください。"); }
 
         using var store = new SecureDataStore(DataDir, DataProtectionScope.CurrentUser);
         EnsureBackupSchema(store.Connection);
@@ -3013,7 +3050,7 @@ public sealed class LocalDatabaseService
             return new BackupResult(false, "コメントにファイル名として使えない文字が含まれています。");
 
         try { Directory.CreateDirectory(dir); }
-        catch (Exception ex) { return new BackupResult(false, $"バックアップ先フォルダを作成できません：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "バックアップ先フォルダ作成エラー"); return new BackupResult(false, "バックアップ先フォルダを作成できません。詳細はログを確認してください。"); }
 
         string stamp = DateTime.Now.ToString("yyyyMMddHHmmss");
         string 名前 = stamp + "_" + (string.IsNullOrEmpty(comment) ? "" : comment + "_") + "PayCalcDXPro.db";
@@ -3036,7 +3073,8 @@ public sealed class LocalDatabaseService
         }
         catch (Exception ex)
         {
-            return new BackupResult(false, $"バックアップに失敗しました：{ex.Message}");
+            AppErrors.Log(ex, "バックアップ失敗");
+            return new BackupResult(false, "バックアップに失敗しました。詳細はログを確認してください。");
         }
     }
 
@@ -3097,7 +3135,7 @@ public sealed class LocalDatabaseService
             Directory.CreateDirectory(full);
             return new BackupResult(true, "フォルダを作成しました。", full);
         }
-        catch (Exception ex) { return new BackupResult(false, $"フォルダを作成できません：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "フォルダ作成エラー"); return new BackupResult(false, "フォルダを作成できません。詳細はログを確認してください。"); }
     }
 
     /// <summary>暗号化DB本体のファイル名（SecureDataStore と同一）。</summary>
@@ -3139,7 +3177,7 @@ public sealed class LocalDatabaseService
             File.Delete(filePath);
             return new BackupResult(true, $"バックアップを削除しました：{name}");
         }
-        catch (Exception ex) { return new BackupResult(false, $"削除に失敗しました：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "バックアップ削除エラー"); return new BackupResult(false, "削除に失敗しました。詳細はログを確認してください。"); }
     }
 
     /// <summary>
@@ -3158,7 +3196,7 @@ public sealed class LocalDatabaseService
 
         byte[] dbKey;
         try { dbKey = DpapiKeyProtector.LoadOrCreate(Path.Combine(DataDir, "keys", "db.key"), 32, DataProtectionScope.CurrentUser); }
-        catch (Exception ex) { return new BackupResult(false, $"暗号鍵を取得できません：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "暗号鍵取得エラー"); return new BackupResult(false, "暗号鍵を取得できません。詳細はログを確認してください。"); }
         string 鍵 = Convert.ToBase64String(dbKey);
 
         var kind = DetectBackupKind(filePath, 鍵, out string? plainTemp);
@@ -3186,7 +3224,8 @@ public sealed class LocalDatabaseService
         }
         catch (Exception ex)
         {
-            return new BackupResult(false, $"復元に失敗しました：{ex.Message}");
+            AppErrors.Log(ex, "復元失敗");
+            return new BackupResult(false, "復元に失敗しました。詳細はログを確認してください。");
         }
     }
 
@@ -3206,7 +3245,7 @@ public sealed class LocalDatabaseService
 
         byte[] dbKey;
         try { dbKey = DpapiKeyProtector.LoadOrCreate(Path.Combine(DataDir, "keys", "db.key"), 32, DataProtectionScope.CurrentUser); }
-        catch (Exception ex) { return new BackupResult(false, $"暗号鍵を取得できません：{ex.Message}"); }
+        catch (Exception ex) { AppErrors.Log(ex, "暗号鍵取得エラー"); return new BackupResult(false, "暗号鍵を取得できません。詳細はログを確認してください。"); }
         string 鍵 = Convert.ToBase64String(dbKey);
 
         var kind = DetectBackupKind(filePath, 鍵, out string? plainTemp);
@@ -3245,7 +3284,8 @@ public sealed class LocalDatabaseService
         }
         catch (Exception ex)
         {
-            return new BackupResult(false, $"前年データの取込に失敗しました：{ex.Message}");
+            AppErrors.Log(ex, "前年データ取込失敗");
+            return new BackupResult(false, "前年データの取込に失敗しました。詳細はログを確認してください。");
         }
     }
 
@@ -3406,7 +3446,8 @@ public sealed class LocalDatabaseService
         }
         catch (Exception ex)
         {
-            return new BackupResult(false, $"取込に失敗しました：{ex.Message}");
+            AppErrors.Log(ex, "バックアップ取込失敗");
+            return new BackupResult(false, "取込に失敗しました。詳細はログを確認してください。");
         }
         finally
         {

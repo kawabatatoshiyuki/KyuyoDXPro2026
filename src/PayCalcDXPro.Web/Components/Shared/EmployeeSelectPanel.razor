@@ -1,0 +1,107 @@
+@* 計算系画面（給与・賞与・年末調整）共通の従業員選択パネル。
+   従業員登録画面（Employees.razor）の左一覧を「選択専用」に簡素化したもの。
+   並び替えは行わず（並び順は従業員マスタに従う）、絞り込み検索・選択中ハイライト・
+   退職チップ・計算済（✅）マークに対応する。
+   デスクトップ（md以上）で各画面の左側に表示し、モバイルではヘッダーのドロップダウンを使う。 *@
+
+<MudPaper Elevation="1" Class="pa-2 emp-select-panel">
+    @if (Items.Count == 0)
+    {
+        <MudText Class="pa-3" Color="Color.Secondary">従業員が登録されていません。</MudText>
+    }
+    else
+    {
+        @if (ShowSearch)
+        {
+            <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Immediate="true" DebounceInterval="150"
+                          Placeholder="氏名・フリガナ・No で絞り込み" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Clearable="true" Class="mb-2" />
+        }
+        <div class="emp-select-list">
+            @if (_view.Count == 0)
+            {
+                <MudText Class="pa-3" Color="Color.Secondary">「@_search」に一致する従業員がいません。</MudText>
+            }
+            else
+            {
+                @foreach (var it in _view)
+                {
+                    var item = it;
+                    <MudPaper Outlined="true" Class="@RowClass(item)" Style="cursor:pointer;"
+                              @onclick="@(() => OnSelect.InvokeAsync(item))">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <div class="flex-grow-1">
+                                <MudText Typo="Typo.body1">
+                                    @item.氏名@(item.Saved ? " ✅" : "")
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    No.@item.No@(string.IsNullOrEmpty(item.Sub) ? "" : $" / {item.Sub}")
+                                </MudText>
+                            </div>
+                            @if (item.Retired)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">退職</MudChip>
+                            }
+                        </MudStack>
+                    </MudPaper>
+                }
+            }
+        </div>
+    }
+</MudPaper>
+
+@code {
+    /// <summary>一覧に表示する従業員（並び順はマスタ順の呼び出し側指定に従う）。</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<EmpPickItem> Items { get; set; } = Array.Empty<EmpPickItem>();
+
+    /// <summary>選択中の従業員 Number（ハイライト用）。</summary>
+    [Parameter] public int Selected { get; set; }
+
+    /// <summary>行クリック時のコールバック。</summary>
+    [Parameter] public EventCallback<EmpPickItem> OnSelect { get; set; }
+
+    /// <summary>絞り込み検索欄を表示するか（既定：表示）。</summary>
+    [Parameter] public bool ShowSearch { get; set; } = true;
+
+    private string _search = "";
+    private List<EmpPickItem> _view = new();
+
+    // 呼び出し側で Items や _saved が変わるたびに絞り込み結果を更新する。
+    protected override void OnParametersSet() => ApplyFilter();
+
+    private void OnSearchChanged(string? v)
+    {
+        _search = v ?? "";
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        _view = string.IsNullOrWhiteSpace(_search)
+            ? Items.ToList()
+            : Items.Where(MatchSearch).ToList();
+    }
+
+    // 氏名・フリガナ・No の部分一致（従業員登録画面と同じ挙動）。
+    private bool MatchSearch(EmpPickItem it)
+    {
+        var s = _search.Trim();
+        return (it.氏名?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (it.Kana?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (it.No?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private string RowClass(EmpPickItem item)
+        => "pa-2 mb-1" + (item.Number == Selected ? " mud-theme-primary" : "");
+
+    /// <summary>選択パネルの1行分。各画面の一覧項目（EmployeeListItem/YearEndTarget 等）から詰め替えて渡す。</summary>
+    /// <param name="Number">従業員 Number（キー）。</param>
+    /// <param name="No">従業員 No（表示・検索）。</param>
+    /// <param name="氏名">氏名（表示・検索）。</param>
+    /// <param name="Kana">フリガナ（検索用・無ければ null）。</param>
+    /// <param name="Sub">副次表示（部門/役職など・無ければ null）。</param>
+    /// <param name="Retired">退職者フラグ（退職チップ）。</param>
+    /// <param name="Saved">当該回で計算・保存済み（✅マーク）。</param>
+    public sealed record EmpPickItem(int Number, string No, string 氏名, string? Kana, string? Sub, bool Retired, bool Saved);
+}

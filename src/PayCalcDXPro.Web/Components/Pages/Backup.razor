@@ -221,7 +221,7 @@
                 Snackbar.Add(r.Message, Severity.Error);
             }
         }
-        catch (Exception ex) { Snackbar.Add($"バックアップに失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("バックアップに失敗しました", ex); }
         finally { _busy = false; }
     }
 
@@ -233,7 +233,7 @@
             var r = Db.SaveBackupSettings(_dir, _auto);
             Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
         }
-        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("保存に失敗しました", ex); }
         finally { _busy = false; }
     }
 
@@ -262,7 +262,7 @@
                 _files = Db.ListBackupFiles(_dir);
             }
         }
-        catch (Exception ex) { Snackbar.Add($"削除に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("削除に失敗しました", ex); }
         finally { _busy = false; }
     }
 
@@ -283,7 +283,7 @@
             Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
             if (r.Ok) _doneMsg = "復元が完了しました。";
         }
-        catch (Exception ex) { Snackbar.Add($"復元に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("復元に失敗しました", ex); }
         finally { _busy = false; }
     }
 
@@ -305,7 +305,7 @@
             Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
             if (r.Ok) _doneMsg = "前年データ（マスタ項目）の取込が完了しました。";
         }
-        catch (Exception ex) { Snackbar.Add($"取込に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("取込に失敗しました", ex); }
         finally { _busy = false; }
     }
 

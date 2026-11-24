@@ -361,7 +361,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error);
+            Snackbar.NotifyError("読み込みに失敗しました", ex);
         }
         finally
         {
@@ -390,7 +390,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"登録に失敗しました：{ex.Message}", Severity.Error);
+            Snackbar.NotifyError("登録に失敗しました", ex);
         }
         finally
         {

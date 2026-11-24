@@ -188,7 +188,7 @@
             _selected = _saved.ToHashSet();
             _previewUrl = "";
         }
-        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("読み込みに失敗しました", ex); }
     }
 
     private async Task OnKindChanged(string k)

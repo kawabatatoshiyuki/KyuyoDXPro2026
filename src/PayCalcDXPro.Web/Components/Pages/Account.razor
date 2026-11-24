@@ -100,7 +100,7 @@
     private void 再読込()
     {
         try { _current = Db.GetSecurityAccount(); }
-        catch (Exception ex) { Snackbar.Add($"読み込みに失敗しました：{ex.Message}", Severity.Error); _current = null; }
+        catch (Exception ex) { Snackbar.NotifyError("読み込みに失敗しました", ex); _current = null; }
         _id = _current?.Id ?? "";
         _name = _current?.Name ?? "";
         _password = "";
@@ -128,7 +128,7 @@
                 再読込();
             }
         }
-        catch (Exception ex) { Snackbar.Add($"設定に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("設定に失敗しました", ex); }
         finally { _busy = false; }
     }
 
@@ -146,7 +146,7 @@
             Snackbar.Add(r.Message, r.Ok ? Severity.Success : Severity.Error);
             if (r.Ok) { _justSet = false; 再読込(); }
         }
-        catch (Exception ex) { Snackbar.Add($"解除に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("解除に失敗しました", ex); }
         finally { _busy = false; }
     }
 

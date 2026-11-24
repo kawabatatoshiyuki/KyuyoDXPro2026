@@ -137,6 +137,48 @@ h1:focus {
     align-items: stretch;
 }
 
+/* ===== 従業員選択：左一覧パネル方式（給与・賞与・年末調整の計算画面共通） =====
+   md(960px)未満はモバイル扱いでヘッダーのドロップダウン（.emp-dd-wrap）を使い、
+   md以上では本文左に一覧パネル（.emp-side）を表示してそこから選択する。 */
+.proc-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+}
+/* 右側（既存フォーム）。flex内で子のはみ出しを防ぐため min-width:0。 */
+.proc-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+/* 左側の従業員一覧パネル。既定（モバイル）は非表示。 */
+.emp-side {
+    display: none;
+}
+/* ヘッダー内ドロップダウンの包み。既定はラッパを無視して中の MudSelect を
+   proc-header__controls の直接の子として並べる（レイアウトを変えない）。 */
+.emp-dd-wrap {
+    display: contents;
+}
+/* 一覧本体はスクロール。固定ヘッダー＋検索欄の高さを差し引く。 */
+.emp-select-list {
+    max-height: calc(100vh - 230px);
+    overflow-y: auto;
+}
+@media (min-width: 960px) {
+    /* md以上：左一覧パネルを表示（固定ヘッダー直下に貼り付けて追従）。 */
+    .emp-side {
+        display: block;
+        flex: 0 0 300px;
+        width: 300px;
+        position: sticky;
+        top: 88px;
+    }
+    /* md以上：ヘッダーの従業員ドロップダウンは隠す。 */
+    .emp-dd-wrap {
+        display: none;
+    }
+}
+
 /* ===== 支給・控除：給与明細風の行リスト（ラベル左／金額右・円ぞろえ） ===== */
 .pay-list {
     display: flex;
@@ -452,4 +494,45 @@ h1:focus {
     .pcx-username {
         display: none;
     }
+}
+
+/* 年末調整タブ・源泉徴収簿カードの金額/税額欄：番号（丸数字）を枠の左端、金額を右詰めで並べる。
+   分離CSS（YearEndEmployee.razor.css）だとMudSimpleTable内に生成した .ye-cell へスコープが
+   一致せず効かないため、スコープ非依存のグローバルCSSで指定する。構造＝td.ye-amount > .ye-cell >
+   (.ye-no + .ye-val)。 */
+.gensen-table .ye-cell {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+.gensen-table .ye-no {
+    flex: 0 0 auto;
+    color: var(--mud-palette-text-secondary);   /* ライト/ダークで自動切替 */
+    font-size: .85em;
+}
+.gensen-table .ye-val {
+    flex: 1 1 auto;
+    margin-left: 8px;      /* 番号を左端・金額を右端へ確実に分離 */
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 申告転記事項：税額欄の空きへ「タイトル→データ」を縦に置く。横罫線は出さない（官製様式）。 */
+.gensen-table td.ye-tenki-cell {
+    border-top: none;
+    border-bottom: none;
+    white-space: normal;       /* 長いタイトルは折り返す */
+    vertical-align: middle;
+}
+.gensen-table .ye-tenki-t {
+    display: block;
+    text-align: left;
+    font-size: .72rem;
+    line-height: 1.2;
+    color: var(--mud-palette-text-secondary);   /* ライト/ダークで自動切替 */
+}
+.gensen-table .ye-tenki-d {
+    display: block;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
 }

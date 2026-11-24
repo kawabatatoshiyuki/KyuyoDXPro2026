@@ -259,7 +259,7 @@
             _e.No = no;
             Snackbar.Add($"整理番号 {no} を保存しました。", Severity.Success);
         }
-        catch (Exception ex) { Snackbar.Add($"保存に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("保存に失敗しました", ex); }
         finally { _busy = false; }
     }
 
@@ -278,7 +278,7 @@
             Snackbar.Add("削除しました。", Severity.Success);
             新規();
         }
-        catch (Exception ex) { Snackbar.Add($"削除に失敗しました：{ex.Message}", Severity.Error); }
+        catch (Exception ex) { Snackbar.NotifyError("削除に失敗しました", ex); }
         finally { _busy = false; }
     }
 }
